@@ -1,66 +1,24 @@
 
-import { Fragment } from 'react'
+import { useEffect } from 'react'
 import {
   MapContainer,
   TileLayer,
   Marker,
   Popup,
   Circle,
+  useMap
 } from 'react-leaflet'
 
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
-const normalLocations = [
-  {
-    name: 'Sector 15',
-    position: [28.4089, 77.3178],
-    severity: 'Critical',
-    people: 1250,
-    color: '#f43f5e',
-  },
-  {
-    name: 'Green Valley',
-    position: [28.4150, 77.3050],
-    severity: 'High',
-    people: 840,
-    color: '#f59e0b',
-  },
-  {
-    name: 'Old Town',
-    position: [28.4020, 77.3300],
-    severity: 'Medium',
-    people: 320,
-    color: '#eab308',
-  },
-]
+const createIcon = (severity) => {
+  const color =
+    severity === 'Red' ? '#ef4444' :
+    severity === 'Orange' ? '#f59e0b' :
+    '#22c55e'
 
-const additionalFloodLocations = [
-  {
-    name: 'Riverfront Colony',
-    position: [28.4200, 77.3250],
-    severity: 'Critical',
-    people: 1100,
-    color: '#f43f5e',
-  },
-  {
-    name: 'East Industrial Area',
-    position: [28.3970, 77.3100],
-    severity: 'High',
-    people: 760,
-    color: '#f59e0b',
-  },
-  {
-    name: 'Lakeview Extension',
-    position: [28.4250, 77.2950],
-    severity: 'High',
-    people: 550,
-    color: '#f59e0b',
-  },
-]
-
-const createIcon = (color) =>
-  L.divIcon({
+  return L.divIcon({
     className: '',
     html: `<div style="
       width:18px;
@@ -73,16 +31,42 @@ const createIcon = (color) =>
     iconSize: [18, 18],
     iconAnchor: [9, 9],
   })
+}
 
-function DisasterMap({ simulation }) {
-  const locations = simulation
-    ? [...normalLocations, ...additionalFloodLocations]
-    : normalLocations
+function MapUpdater({ incidents }) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (incidents.length > 0) {
+      const positions = incidents.map((incident) => [
+        incident.latitude,
+        incident.longitude
+      ])
+
+      map.fitBounds(positions, { padding: [40, 40], maxZoom: 7 })
+    }
+  }, [incidents, map])
+
+  return null
+}
+
+function DisasterMap({ incidents = [] }) {
+  const validIncidents = incidents.filter(
+    (incident) =>
+      Number.isFinite(Number(incident.latitude)) &&
+      Number.isFinite(Number(incident.longitude))
+  )
+
+  const firstIncident = validIncidents[0]
+
+  const center = firstIncident
+    ? [Number(firstIncident.latitude), Number(firstIncident.longitude)]
+    : [20, 0]
 
   return (
     <MapContainer
-      center={[28.4089, 77.3178]}
-      zoom={14}
+      center={center}
+      zoom={firstIncident ? 5 : 2}
       scrollWheelZoom={true}
       style={{ height: '100%', width: '100%' }}
     >
@@ -91,32 +75,46 @@ function DisasterMap({ simulation }) {
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
-      {locations.map((location) => (
-        <Fragment key={location.name}>
-          <Circle
-            center={location.position}
-            radius={350}
-            pathOptions={{
-              color: location.color,
-              fillColor: location.color,
-              fillOpacity: 0.15,
-            }}
-          />
+      <MapUpdater incidents={validIncidents} />
 
-          <Marker
-            position={location.position}
-            icon={createIcon(location.color)}
+      {validIncidents.map((incident) => {
+        const position = [
+          Number(incident.latitude),
+          Number(incident.longitude)
+        ]
+
+        return (
+          <Circle
+            key={incident.id}
+            center={position}
+            radius={50000}
+            pathOptions={{
+              color: incident.severity === 'Red' ? '#ef4444' :
+                incident.severity === 'Orange' ? '#f59e0b' : '#22c55e',
+              fillOpacity: 0.12,
+            }}
           >
-            <Popup>
-              <strong>{location.name}</strong>
-              <br />
-              Severity: {location.severity}
-              <br />
-              People affected: {location.people}
-            </Popup>
-          </Marker>
-        </Fragment>
-      ))}
+            <Marker
+              position={position}
+              icon={createIcon(incident.severity)}
+            >
+              <Popup>
+                <strong>{incident.location}</strong>
+                <br />
+                Alert: {incident.severity}
+                <br />
+                Type: {incident.type}
+                <br />
+                Source: {incident.source}
+                <br />
+                <a href={incident.source_url} target="_blank" rel="noreferrer">
+                  GDACS event report
+                </a>
+              </Popup>
+            </Marker>
+          </Circle>
+        )
+      })}
     </MapContainer>
   )
 }

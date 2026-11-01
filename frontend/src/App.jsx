@@ -54,92 +54,66 @@ const floodActivities = [
 
 
 function App() {
+  const [aiAnalyses, setAiAnalyses] = useState({});
+const [analyzingId, setAnalyzingId] = useState(null);
   const [plannedRoutes, setPlannedRoutes] = useState({})
+  const [vehicleAssignments, setVehicleAssignments] = useState([])
   const [activeTab, setActiveTab] = useState('Overview')
   const [simulation, setSimulation] = useState(false)
   const [apiIncidents, setApiIncidents] = useState([])
 const [apiStatus, setApiStatus] = useState('Connecting...')
 const [priorityScores, setPriorityScores] = useState({})
 const [resourceAllocations, setResourceAllocations] = useState([])
-const [remainingInventory, setRemainingInventory] = useState({})
+const [remainingInventory, setRemainingInventory] = useState({
+  food: 2000,
+  water: 3000,
+  medicine: 800
+})
 useEffect(() => {
-  const endpoint = simulation
-    ? 'http://127.0.0.1:8000/simulate-flood'
-    : 'http://127.0.0.1:8000/incidents'
+  setApiStatus('Connecting...')
 
-  // Fetch incidents
-  fetch(endpoint)
+  fetch('http://127.0.0.1:8000/priority-incidents')
     .then((response) => {
       if (!response.ok) {
-        throw new Error('Backend request failed')
+        throw new Error('GDACS request failed')
       }
       return response.json()
     })
     .then((data) => {
-      setApiIncidents(data)
+      setApiIncidents(data.incidents)
       setApiStatus('Connected')
     })
-    .catch(() => {
+    .catch((error) => {
+      console.error('GDACS connection failed:', error)
+      setApiIncidents([])
       setApiStatus('Disconnected')
     })
+}, [])
+const incidents = apiIncidents
+const analyzeIncident = async (incidentId) => {
+  setAnalyzingId(incidentId);
 
-  // Fetch priority scores
-  fetch('http://127.0.0.1:8000/analyze-disaster', {
-    method: 'POST'
-  })
-    .then((response) => {
-      if (!response.ok) {
-        throw new Error('Priority analysis failed')
-      }
-      return response.json()
-    })
-    .then((data) => {
-      const scores = {}
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:8000/analyze-incident/${encodeURIComponent(incidentId)}`
+    );
 
-      data.priority_order.forEach((incident) => {
-        scores[incident.id] = incident.priority_score
-      })
+    const data = await response.json();
 
-      setPriorityScores(scores)
-    })
-    .catch((error) => {
-      console.error('Priority analysis failed:', error)
-    })
+    if (!response.ok) {
+      throw new Error(data.detail || "AI analysis failed");
+    }
 
-  // Fetch resource allocations
-  fetch('http://127.0.0.1:8000/allocate-resources')
-    .then((response) => {
-      if (!response.ok) {
-        throw new Error('Resource allocation failed')
-      }
-      return response.json()
-    })
-    .then((data) => {
-      setResourceAllocations(data.allocations)
-      setRemainingInventory(data.remaining_inventory)
-    })
-    .catch((error) => {
-      console.error('Resource allocation failed:', error)
-    })// Fetch planned routes
-    fetch('http://127.0.0.1:8000/plan-route')
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error('Route planning failed')
-        }
-        return response.json()
-      })
-      .then((data) => {
-        setPlannedRoutes(data.routes)
-      })
-      .catch((error) => {
-        console.error('Route planning failed:', error)
-      })
-}, [simulation])
-const incidents = simulation
-  ? floodIncidents
-  : apiIncidents.length > 0
-    ? apiIncidents
-    : normalIncidents
+    setAiAnalyses((previous) => ({
+      ...previous,
+      [incidentId]: data.analysis,
+    }));
+  } catch (error) {
+    alert(error.message);
+  } finally {
+    setAnalyzingId(null);
+  }
+};
     const inventory = simulation ? floodInventory : normalInventory
 
     const liveInventory = inventory.map((item) => {
@@ -230,15 +204,167 @@ const incidents = simulation
                 <span className="h-2 w-2 rounded-full bg-emerald-400" />
                 {apiStatus === 'Connected' ? 'Backend connected' : apiStatus}
               </div>
-              <button
-                onClick={() => setSimulation(!simulation)}
-                className="flex items-center gap-2 rounded-xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
-              >
-                <Zap size={16} />
-                {simulation ? 'Reset Simulation' : 'Simulate Flood'}
-              </button>
+            
             </div>
           </header>
+ {/* Live Metrics */}
+<section className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+  {[
+    {
+      label: 'Priority Alerts',
+      value: apiIncidents.length,
+      detail: 'Live source records',
+      icon: Activity,
+      color: 'text-cyan-400',
+      bg: 'bg-cyan-500/10'
+    },
+    {
+      label: 'Red Alerts',
+      value: apiIncidents.filter((item) => item.severity === 'Red').length,
+      detail: 'Highest alert level',
+      icon: AlertTriangle,
+      color: 'text-rose-400',
+      bg: 'bg-rose-500/10'
+    },
+    {
+      label: 'Orange Alerts',
+      value: apiIncidents.filter((item) => item.severity === 'Orange').length,
+      detail: 'Elevated alert level',
+      icon: Radio,
+      color: 'text-amber-400',
+      bg: 'bg-amber-500/10'
+    },
+    {
+      label: 'People Affected',
+      value: 'Unavailable',
+      detail: 'No verified figure in feed',
+      icon: Users,
+      color: 'text-slate-400',
+      bg: 'bg-slate-500/10'
+    },
+  ].map((item) => (
+    <div key={item.label} className="rounded-2xl border border-slate-800 bg-[#101a2b] p-5">
+      <div className="mb-4 flex items-center justify-between">
+        <p className="text-sm text-slate-400">{item.label}</p>
+        <div className={`rounded-xl p-2.5 ${item.bg} ${item.color}`}>
+          <item.icon size={19} />
+        </div>
+      </div>
+      <h3 className="text-2xl font-bold">{item.value}</h3>
+      <p className="mt-2 text-xs text-slate-500">{item.detail}</p>
+    </div>
+  ))}
+</section>
+ {/* Map and incidents */}
+ <section className="mb-7 grid grid-cols-1 gap-5 xl:grid-cols-3">
+
+{/* Map placeholder */}
+<div className="rounded-2xl border border-slate-800 bg-[#101a2b] p-5 xl:col-span-2">
+  <div className="mb-5 flex items-center justify-between">
+    <div>
+      <h3 className="font-semibold">Disaster Monitoring Map</h3>
+      <p className="mt-1 text-xs text-slate-500">Incident locations and response zones</p>
+    </div>
+    <span className="rounded-lg bg-rose-500/10 px-3 py-1.5 text-xs text-rose-400">● Live simulation</span>
+  </div>
+
+  <div className="h-72 overflow-hidden rounded-xl border border-slate-700">
+<DisasterMap incidents={incidents} />
+</div>
+{simulation && (
+  <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-400">
+    <div className="flex items-center gap-2">
+      <span className="h-2 w-5 border-t-2 border-dashed border-rose-500"></span>
+      Blocked Road
+    </div>
+
+    <div className="flex items-center gap-2">
+      <span className="h-2 w-5 border-t-2 border-green-500"></span>
+      Alternative Route
+    </div>
+
+    <div className="flex items-center gap-2">
+      <span className="h-2 w-2 rounded-full bg-rose-500"></span>
+      Critical Incident
+    </div>
+  </div>
+)}
+
+<div className="mt-4 flex flex-wrap gap-5 text-xs text-slate-400">
+  <span><span className="text-rose-400">●</span> Red Alert</span>
+  <span><span className="text-amber-400">●</span> Orange Alert</span>
+  <span><span className="text-green-400">●</span> Green Alert</span>
+</div>
+</div>
+{/* Incidents */}
+<div className="rounded-2xl border border-slate-800 bg-[#101a2b] p-5">
+  <div className="mb-5 flex items-center justify-between">
+    <h3 className="font-semibold">Priority Incidents</h3>
+    <span className="text-xs text-cyan-400">View all <ArrowUpRight className="inline" size={13} /></span>
+  </div>
+  <div className="space-y-4">
+    {incidents.map((incident) => (
+      <div key={incident.id} className="border-b border-slate-800 pb-4 last:border-0">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-xs text-slate-500">{incident.id}</span>
+          <span className={`rounded-md px-2 py-1 text-[10px] ${
+            incident.severity === 'Red' ? 'bg-rose-500/10 text-rose-400' :
+            incident.severity === 'Orange' ? 'bg-amber-500/10 text-amber-400' :
+            'bg-green-500/10 text-green-400'
+          }`}>{incident.severity}</span>
+        </div>
+        <div className="mt-3 rounded-md border border-amber-500/20 bg-amber-500/5 p-3">
+  <p className="text-xs font-semibold text-amber-400">
+    RESOURCE ALLOCATION PENDING
+  </p>
+  <p className="mt-1 text-xs text-slate-400">
+    Verified warehouse inventory is not connected.
+    Resource requirements cannot yet be calculated.
+  </p>
+</div>
+<div className="mt-2 flex flex-wrap justify-between gap-2 text-xs text-slate-500">
+  <span>Population impact: Not reported</span>
+  <span>{incident.time}</span>
+</div>
+{incident.source_url && (
+  <a
+    href={incident.source_url}
+    target="_blank"
+    rel="noreferrer"
+    className="mt-2 inline-flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300"
+  >
+    View official GDACS report
+    <ArrowUpRight size={13} />
+  </a>
+)}
+
+<button
+  onClick={() => analyzeIncident(incident.id)}
+  disabled={analyzingId === incident.id}
+  className="mt-3 w-full rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-500 disabled:opacity-50"
+>
+  {analyzingId === incident.id ? "Analyzing..." : "Generate AI Analysis"}
+</button>
+
+{aiAnalyses[incident.id] && (
+  <div className="mt-3 rounded-lg border border-cyan-500/30 bg-slate-900 p-4">
+    <h4 className="mb-2 font-semibold text-cyan-400">
+      RESQNET AI Analysis
+    </h4>
+    <div className="whitespace-pre-wrap text-sm leading-6 text-slate-300">
+      {aiAnalyses[incident.id]}
+    </div>
+    <p className="mt-3 text-xs text-amber-400">
+      AI-generated recommendations. Human verification required.
+    </p>
+  </div>
+)}
+
+      </div>
+    ))}
+  </div>
+</div>
+</section>
 
           {/* Simulation notice */}
           {simulation && (
@@ -248,208 +374,106 @@ const incidents = simulation
             </div>
           )}
 
-          {/* Metrics */}
-          <section className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              { label: 'Active Incidents', value: simulation ? '06' : '03', change: 'Requires attention', icon: AlertTriangle, color: 'text-rose-400', bg: 'bg-rose-500/10' },
-              { label: 'People Affected', value: simulation ? '4,820' : '2,410', change: 'Across 3 locations', icon: Users, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-              { label: 'Relief Vehicles', value: '08', change: '5 available', icon: Ambulance, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-              { label: 'Resources Deployed', value: '64%', change: 'Of available stock', icon: Package, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-            ].map((item) => (
-              <div key={item.label} className="rounded-2xl border border-slate-800 bg-[#101a2b] p-5">
-                <div className="mb-4 flex items-center justify-between">
-                  <p className="text-sm text-slate-400">{item.label}</p>
-                  <div className={`rounded-xl p-2.5 ${item.bg} ${item.color}`}>
-                    <item.icon size={19} />
-                  </div>
-                </div>
-                <h3 className="text-3xl font-bold">{item.value}</h3>
-                <p className="mt-2 text-xs text-slate-500">{item.change}</p>
-              </div>
-            ))}
-          </section>
+       {/* Resource Distribution */}
+<section className="mb-7 rounded-2xl border border-slate-800 bg-[#101a2b] p-5">
+  <div className="mb-4 flex items-center justify-between">
+    <div>
+      <h3 className="text-lg font-semibold">Resource Distribution</h3>
+      <p className="mt-1 text-xs text-slate-500">
+        Emergency supply planning and allocation
+      </p>
+    </div>
+    <span className="text-xs text-amber-400">
+      Awaiting Inventory Data
+    </span>
+  </div>
 
-          {/* Map and incidents */}
-          <section className="mb-7 grid grid-cols-1 gap-5 xl:grid-cols-3">
+  <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+    <Package className="mb-3 text-amber-400" size={22} />
 
-            {/* Map placeholder */}
-            <div className="rounded-2xl border border-slate-800 bg-[#101a2b] p-5 xl:col-span-2">
-              <div className="mb-5 flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold">Disaster Monitoring Map</h3>
-                  <p className="mt-1 text-xs text-slate-500">Incident locations and response zones</p>
-                </div>
-                <span className="rounded-lg bg-rose-500/10 px-3 py-1.5 text-xs text-rose-400">● Live simulation</span>
-              </div>
+    <p className="text-sm font-medium text-amber-300">
+      Resource allocation unavailable
+    </p>
 
-              <div className="h-72 overflow-hidden rounded-xl border border-slate-700">
-  <DisasterMap simulation={simulation} />
+    <p className="mt-2 text-xs leading-5 text-slate-400">
+      No verified warehouse inventory or supply availability
+      source is connected. RESQNET cannot currently calculate
+      resource requirements or recommend allocations.
+    </p>
+  </div>
+</section>
+         {/* Inventory and agents */}
+<section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+
+<div className="rounded-2xl border border-slate-800 bg-[#101a2b] p-5">
+  <div className="mb-6 flex items-center justify-between">
+    <div>
+      <h3 className="font-semibold">Relief Inventory</h3>
+      <p className="mt-1 text-xs text-slate-500">
+        Operational warehouse data
+      </p>
+    </div>
+    <Package className="text-cyan-400" size={20} />
+  </div>
+
+  <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+    <AlertTriangle className="mb-3 text-amber-400" size={22} />
+    <p className="text-sm font-medium text-amber-300">
+      Inventory data not connected
+    </p>
+    <p className="mt-2 text-xs leading-5 text-slate-400">
+      RESQNET does not currently have access to a verified warehouse
+      inventory source. Resource quantities and allocations are
+      therefore unavailable.
+    </p>
+  </div>
 </div>
 
-              <div className="mt-4 flex flex-wrap gap-5 text-xs text-slate-400">
-                <span><span className="text-rose-400">●</span> Critical</span>
-                <span><span className="text-amber-400">●</span> High</span>
-                <span><span className="text-yellow-400">●</span> Medium</span>
-              </div>
-              <div className="mt-5 border-t border-slate-800 pt-4">
-  <h3 className="mb-3 font-semibold">Autonomous Route Planner</h3>
-
-  {Object.entries(plannedRoutes).map(([destination, route]) => (
-    <div
-      key={destination}
-      className="mb-3 rounded-lg border border-slate-700 bg-slate-900/50 p-3"
-    >
-      <p className="text-sm font-medium text-cyan-400">
-        {destination}
+<div className="rounded-2xl border border-slate-800 bg-[#101a2b] p-5">
+  <div className="mb-6 flex items-center justify-between">
+    <div>
+      <h3 className="font-semibold">AI Agent Activity</h3>
+      <p className="mt-1 text-xs text-slate-500">
+        System activity status
       </p>
-
-      <p className="mt-1 text-xs text-slate-300">
-        {route.path ? route.path.join(' → ') : route.status}
-      </p>
-
-      {route.distance_km !== undefined && (
-        <p className="mt-1 text-xs text-slate-400">
-          Distance: {route.distance_km} km
-        </p>
-      )}
     </div>
-  ))}
+    <BrainCircuit className="text-cyan-400" size={21} />
+  </div>
+
+  <div className="space-y-4">
+    <div className="flex gap-3">
+      <CheckCircle2 className="mt-1 text-emerald-400" size={17} />
+      <div>
+        <p className="text-sm font-medium">GDACS Data Retrieval</p>
+        <p className="mt-1 text-xs text-slate-500">
+          Live disaster event feed retrieved successfully.
+        </p>
+      </div>
+    </div>
+
+    <div className="flex gap-3">
+      <CheckCircle2 className="mt-1 text-emerald-400" size={17} />
+      <div>
+        <p className="text-sm font-medium">Priority Alert Filtering</p>
+        <p className="mt-1 text-xs text-slate-500">
+          Red and Orange alerts separated from the event feed.
+        </p>
+      </div>
+    </div>
+
+    <div className="flex gap-3">
+      <Clock className="mt-1 text-cyan-400" size={17} />
+      <div>
+        <p className="text-sm font-medium">AI Disaster Analysis</p>
+        <p className="mt-1 text-xs text-slate-500">
+          Not connected yet.
+        </p>
+      </div>
+    </div>
+  </div>
 </div>
-            </div>
 
-            {/* Incidents */}
-            <div className="rounded-2xl border border-slate-800 bg-[#101a2b] p-5">
-              <div className="mb-5 flex items-center justify-between">
-                <h3 className="font-semibold">Priority Incidents</h3>
-                <span className="text-xs text-cyan-400">View all <ArrowUpRight className="inline" size={13} /></span>
-              </div>
-              <div className="space-y-4">
-                {incidents.map((incident) => (
-                  <div key={incident.id} className="border-b border-slate-800 pb-4 last:border-0">
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-xs text-slate-500">{incident.id}</span>
-                      <span className={`rounded-md px-2 py-1 text-[10px] ${
-                        incident.severity === 'Critical' ? 'bg-rose-500/10 text-rose-400' :
-                        incident.severity === 'High' ? 'bg-amber-500/10 text-amber-400' :
-                        'bg-yellow-500/10 text-yellow-400'
-                      }`}>{incident.severity}</span>
-                    </div>
-                    <p className="text-sm font-medium">{incident.location}</p><p className="mt-1 text-xs font-semibold text-cyan-400">
-  Priority Score: {priorityScores[incident.id] ?? 'Calculating...'}
-</p>
-{resourceAllocations
-  .filter((item) => item.incident_id === incident.id)
-  .map((item) => (
-    <div
-      key={item.incident_id}
-      className="mt-2 rounded-md border border-rose-500/20 bg-rose-500/10 p-2"
-    >
-      {(item.food_shortage > 0 ||
-        item.water_shortage > 0 ||
-        item.medicine_shortage > 0) ? (
-        <>
-          <p className="mb-1 text-xs font-semibold text-rose-400">
-            RESOURCE SHORTAGE
-          </p>
-
-          {item.food_shortage > 0 && (
-            <p className="text-xs text-slate-300">
-              Food: {item.food_shortage} units
-            </p>
-          )}
-
-          {item.water_shortage > 0 && (
-            <p className="text-xs text-slate-300">
-              Water: {item.water_shortage} litres
-            </p>
-          )}
-
-          {item.medicine_shortage > 0 && (
-            <p className="text-xs text-slate-300">
-              Medicine: {item.medicine_shortage} kits
-            </p>
-          )}
-        </>
-      ) : (
-        <p className="text-xs font-semibold text-emerald-400">
-          All resource demands fulfilled
-        </p>
-      )}
-    </div>
-  ))}
-                    <div className="mt-2 flex justify-between text-xs text-slate-500">
-                      <span>{incident.people} affected</span>
-                      <span>{incident.time}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          {/* Inventory and agents */}
-          <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-
-            <div className="rounded-2xl border border-slate-800 bg-[#101a2b] p-5">
-              <div className="mb-6 flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold">Relief Inventory</h3>
-                  <p className="mt-1 text-xs text-slate-500">Central warehouse stock · Simulated</p>
-                </div>
-                <Package className="text-cyan-400" size={20} />
-              </div>
-              <div className="space-y-6">
-                {liveInventory.map((item) => (
-                  <div key={item.name}>
-                    <div className="mb-2 flex justify-between text-sm">
-                      <span className="flex items-center gap-2 text-slate-300">
-                        <item.icon size={16} className="text-cyan-400" />
-                        {item.name}
-                      </span>
-                      <span className="text-slate-400">{item.stock} {item.unit}</span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-slate-800">
-                      <div className={`h-full rounded-full ${item.percent < 25 ? 'bg-rose-400' : 'bg-cyan-400'}`} style={{ width: `${item.percent}%` }} />
-                    </div>
-                    {item.percent < 25 && (
-                      <p className="mt-1 text-[10px] text-rose-400">Low stock warning</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-slate-800 bg-[#101a2b] p-5">
-              <div className="mb-6 flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold">AI Agent Activity</h3>
-                  <p className="mt-1 text-xs text-slate-500">Coordination system activity log</p>
-                </div>
-                <BrainCircuit className="text-cyan-400" size={21} />
-              </div>
-              <div className="space-y-5">
-                {activities.map((activity) => (
-                  <div key={activity.title} className="flex gap-3">
-                    <div className="mt-1">
-                      {activity.status === 'Completed'
-                        ? <CheckCircle2 className="text-emerald-400" size={17} />
-                        : activity.status === 'Warning'
-                        ? <AlertTriangle className="text-amber-400" size={17} />
-                        : <Clock className="text-cyan-400" size={17} />}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap justify-between gap-2">
-                        <p className="text-sm font-medium">{activity.title}</p>
-                        <span className="text-[10px] text-slate-500">{activity.time}</span>
-                      </div>
-                      <p className="mt-1 text-xs text-slate-500">{activity.detail}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
-
+</section>
           <footer className="mt-8 border-t border-slate-800 pt-5 text-center text-xs text-slate-600">
             RESQNET · Disaster Intelligence & Autonomous Relief Coordination Network · Prototype v1.0
           </footer>
