@@ -1,7 +1,7 @@
 
 import os
 import json
-import sqlite3
+
 import urllib.request
 import uuid
 
@@ -16,7 +16,7 @@ from models import Warehouse, Inventory, Allocation
 
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-DB_PATH = os.path.join(os.path.dirname(__file__), "resqnet.db")
+
 
 app = FastAPI(
     title="RESQNET India API",
@@ -34,51 +34,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-def db():
-    connection = sqlite3.connect(DB_PATH)
-    connection.row_factory = sqlite3.Row
-    return connection
-
-
-def initialize_db():
-    with db() as connection:
-        connection.execute("""
-            CREATE TABLE IF NOT EXISTS warehouses (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                state TEXT NOT NULL,
-                district TEXT NOT NULL,
-                latitude REAL,
-                longitude REAL,
-                verified_by TEXT NOT NULL
-            )
-        """)
-
-        connection.execute("""
-            CREATE TABLE IF NOT EXISTS inventory (
-                warehouse_id INTEGER PRIMARY KEY,
-                food INTEGER NOT NULL DEFAULT 0,
-                water INTEGER NOT NULL DEFAULT 0,
-                medicine INTEGER NOT NULL DEFAULT 0,
-                FOREIGN KEY (warehouse_id) REFERENCES warehouses(id)
-            )
-        """)
-
-        connection.execute("""
-            CREATE TABLE IF NOT EXISTS allocations (
-                id TEXT PRIMARY KEY,
-                incident_id TEXT NOT NULL,
-                warehouse_id INTEGER NOT NULL,
-                requirements TEXT NOT NULL,
-                status TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-
-
-initialize_db()
 
 
 @app.get("/")
