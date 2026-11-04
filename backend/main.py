@@ -28,14 +28,12 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
-        "http://localhost:5174"
-    ],
+        "http://localhost:5174",
+    ] + ([os.getenv("FRONTEND_URL").rstrip("/")] if os.getenv("FRONTEND_URL") else []),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
 @app.get("/")
 def home():
     return {"message": "RESQNET India backend operational", "status": "online"}
