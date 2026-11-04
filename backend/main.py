@@ -278,7 +278,6 @@ def update_inventory(warehouse_id: int, item: InventoryInput):
         "warehouse_id": warehouse_id,
         "inventory": item.model_dump()
     }
-
 @app.post("/allocation/preview")
 def allocation_preview(item: AllocationInput):
     try:
@@ -297,61 +296,66 @@ def allocation_preview(item: AllocationInput):
             detail="Incident not found in current India GDACS feed"
         )
 
-    with db() as connection:
-        row = connection.execute("""
-            SELECT w.name, i.food, i.water, i.medicine
-            FROM warehouses w
-            JOIN inventory i ON w.id = i.warehouse_id
-            WHERE w.id = ?
-        """, (item.warehouse_id,)).fetchone()
-
-    if not row:
-        raise HTTPException(status_code=404, detail="Warehouse not found")
-
     requested = {
         "food": item.food,
         "water": item.water,
         "medicine": item.medicine
     }
 
-    available = {
-        "food": row["food"],
-        "water": row["water"],
-        "medicine": row["medicine"]
-    }
+    with SessionLocal.begin() as session:
+        warehouse = session.get(Warehouse, item.warehouse_id)
 
-    allocation = {
-        key: min(requested[key], available[key])
-        for key in requested
-    }
+        if warehouse is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Warehouse not found"
+            )
 
-    shortages = {
-        key: requested[key] - allocation[key]
-        for key in requested
-    }
+        inventory = session.get(Inventory, item.warehouse_id)
 
-    allocation_id = str(uuid.uuid4())
+        if inventory is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Inventory not found"
+            )
 
-    with db() as connection:
-        connection.execute("""
-            INSERT INTO allocations
-            (id, incident_id, warehouse_id, requirements, status)
-            VALUES (?, ?, ?, ?, 'PENDING')
-        """, (
-            allocation_id,
-            item.incident_id,
-            item.warehouse_id,
-            json.dumps({
+        available = {
+            "food": inventory.food,
+            "water": inventory.water,
+            "medicine": inventory.medicine
+        }
+
+        allocation = {
+            key: min(requested[key], available[key])
+            for key in requested
+        }
+
+        shortages = {
+            key: requested[key] - allocation[key]
+            for key in requested
+        }
+
+        allocation_id = str(uuid.uuid4())
+        warehouse_name = warehouse.name
+
+        record = Allocation(
+            id=allocation_id,
+            incident_id=item.incident_id,
+            warehouse_id=item.warehouse_id,
+            requirements=json.dumps({
                 "requested": requested,
                 "allocation": allocation,
                 "shortages": shortages
-            })
-        ))
+            }),
+            status="PENDING"
+        )
+
+        session.add(record)
 
     return {
         "allocation_id": allocation_id,
         "incident": incident,
-        "warehouse": row["name"],
+        "warehouse": warehouse_name,
         "requested": requested,
         "available": available,
         "proposed_allocation": allocation,
@@ -363,60 +367,54 @@ def allocation_preview(item: AllocationInput):
 
 @app.post("/allocation/{allocation_id}/approve")
 def approve_allocation(allocation_id: str):
-    with db() as connection:
-        connection.execute("BEGIN IMMEDIATE")
+    with SessionLocal.begin() as session:
+        record = (
+            session.query(Allocation)
+            .filter(Allocation.id == allocation_id)
+            .with_for_update()
+            .first()
+        )
 
-        record = connection.execute("""
-            SELECT * FROM allocations
-            WHERE id = ?
-        """, (allocation_id,)).fetchone()
+        if record is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Allocation not found"
+            )
 
-        if not record:
-            raise HTTPException(status_code=404, detail="Allocation not found")
-
-        if record["status"] != "PENDING":
+        if record.status != "PENDING":
             raise HTTPException(
                 status_code=409,
                 detail="Allocation is not pending approval"
             )
 
-        details = json.loads(record["requirements"])
+        details = json.loads(record.requirements)
         allocation = details["allocation"]
-        warehouse_id = record["warehouse_id"]
 
-        stock = connection.execute("""
-            SELECT food, water, medicine
-            FROM inventory WHERE warehouse_id = ?
-        """, (warehouse_id,)).fetchone()
+        inventory = (
+            session.query(Inventory)
+            .filter(Inventory.warehouse_id == record.warehouse_id)
+            .with_for_update()
+            .first()
+        )
 
-        if not stock:
-            raise HTTPException(status_code=404, detail="Inventory not found")
+        if inventory is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Inventory not found"
+            )
 
-        for key in allocation:
-            if stock[key] < allocation[key]:
+        for key in ("food", "water", "medicine"):
+            if getattr(inventory, key) < allocation[key]:
                 raise HTTPException(
                     status_code=409,
                     detail=f"Insufficient {key} stock. Update the preview."
                 )
 
-        connection.execute("""
-            UPDATE inventory
-            SET food = food - ?,
-                water = water - ?,
-                medicine = medicine - ?
-            WHERE warehouse_id = ?
-        """, (
-            allocation["food"],
-            allocation["water"],
-            allocation["medicine"],
-            warehouse_id
-        ))
+        inventory.food -= allocation["food"]
+        inventory.water -= allocation["water"]
+        inventory.medicine -= allocation["medicine"]
 
-        connection.execute("""
-            UPDATE allocations
-            SET status = 'APPROVED'
-            WHERE id = ?
-        """, (allocation_id,))
+        record.status = "APPROVED"
 
     return {
         "allocation_id": allocation_id,
@@ -424,8 +422,6 @@ def approve_allocation(allocation_id: str):
         "deducted_stock": allocation,
         "message": "Inventory updated after human approval"
     }
-
-
 @app.get("/analyze-incident/{incident_id}")
 def analyze_incident(incident_id: str):
     if not GEMINI_API_KEY:
