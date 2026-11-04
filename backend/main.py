@@ -10,6 +10,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from google import genai
+from sqlalchemy.orm import Session
+from database import SessionLocal
+from models import Warehouse, Inventory, Allocation
 
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -198,65 +201,83 @@ class AllocationInput(BaseModel):
 
 @app.post("/warehouses")
 def register_warehouse(item: WarehouseInput):
-    with db() as connection:
-        cursor = connection.execute("""
-            INSERT INTO warehouses
-            (name, state, district, latitude, longitude, verified_by)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (
-            item.name, item.state, item.district,
-            item.latitude, item.longitude, item.verified_by
-        ))
+    with SessionLocal.begin() as session:
+        warehouse = Warehouse(
+            name=item.name,
+            state=item.state,
+            district=item.district,
+            latitude=item.latitude,
+            longitude=item.longitude,
+            verified_by=item.verified_by,
+        )
 
-        warehouse_id = cursor.lastrowid
+        session.add(warehouse)
+        session.flush()
 
-        connection.execute("""
-            INSERT INTO inventory (warehouse_id)
-            VALUES (?)
-        """, (warehouse_id,))
+        warehouse_id = warehouse.id
+
+        inventory = Inventory(warehouse_id=warehouse_id)
+        session.add(inventory)
 
     return {
         "message": "Warehouse registered",
         "warehouse_id": warehouse_id,
         "verification": "Operator-entered; not independently verified by RESQNET"
     }
-
-
 @app.get("/warehouses")
 def list_warehouses():
-    with db() as connection:
-        rows = connection.execute("""
-            SELECT w.*, i.food, i.water, i.medicine
-            FROM warehouses w
-            JOIN inventory i ON w.id = i.warehouse_id
-        """).fetchall()
+    with SessionLocal() as session:
+        results = (
+            session.query(Warehouse, Inventory)
+            .join(
+                Inventory,
+                Warehouse.id == Inventory.warehouse_id
+            )
+            .all()
+        )
 
-    return [dict(row) for row in rows]
-
+        return [
+            {
+                "id": warehouse.id,
+                "name": warehouse.name,
+                "state": warehouse.state,
+                "district": warehouse.district,
+                "latitude": warehouse.latitude,
+                "longitude": warehouse.longitude,
+                "verified_by": warehouse.verified_by,
+                "food": inventory.food,
+                "water": inventory.water,
+                "medicine": inventory.medicine,
+            }
+            for warehouse, inventory in results
+        ]
 
 @app.put("/warehouses/{warehouse_id}/inventory")
 def update_inventory(warehouse_id: int, item: InventoryInput):
-    with db() as connection:
-        warehouse = connection.execute(
-            "SELECT id FROM warehouses WHERE id = ?",
-            (warehouse_id,)
-        ).fetchone()
+    with SessionLocal.begin() as session:
+        warehouse = session.get(Warehouse, warehouse_id)
 
-        if not warehouse:
-            raise HTTPException(status_code=404, detail="Warehouse not found")
+        if warehouse is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Warehouse not found"
+            )
 
-        connection.execute("""
-            UPDATE inventory
-            SET food = ?, water = ?, medicine = ?
-            WHERE warehouse_id = ?
-        """, (item.food, item.water, item.medicine, warehouse_id))
+        inventory = session.get(Inventory, warehouse_id)
+
+        if inventory is None:
+            inventory = Inventory(warehouse_id=warehouse_id)
+            session.add(inventory)
+
+        inventory.food = item.food
+        inventory.water = item.water
+        inventory.medicine = item.medicine
 
     return {
         "message": "Inventory updated",
         "warehouse_id": warehouse_id,
         "inventory": item.model_dump()
     }
-
 
 @app.post("/allocation/preview")
 def allocation_preview(item: AllocationInput):
