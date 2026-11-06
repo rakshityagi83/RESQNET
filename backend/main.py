@@ -1,12 +1,13 @@
-
+from datetime import date, timedelta, datetime
+import requests
 import os
 import json
-
+from warehouse_discovery import router as warehouse_discovery_router
 import urllib.request
 import uuid
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from google import genai
@@ -23,6 +24,7 @@ app = FastAPI(
     description="India-focused Disaster Intelligence and Relief Coordination",
     version="2.0.0"
 )
+app.include_router(warehouse_discovery_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -107,6 +109,99 @@ def india_incidents():
         }
     except Exception as error:
         raise HTTPException(status_code=502, detail=str(error))
+
+@app.get("/historical-incidents")
+def historical_incidents(
+    days: int = Query(60, ge=1, le=365)
+):
+    end_date = date.today()
+    start_date = end_date - timedelta(days=days)
+
+    url = (
+        "https://www.gdacs.org/gdacsapi/api/"
+        "events/geteventlist/SEARCH"
+    )
+
+    try:
+        response = requests.get(
+            url,
+            params={
+                "country": "India",
+                "fromdate": start_date.isoformat(),
+                "todate": end_date.isoformat()
+            },
+            headers={"User-Agent": "RESQNET/2.0"},
+            timeout=30
+        )
+        response.raise_for_status()
+        data = response.json()
+
+    except (requests.RequestException, ValueError):
+        raise HTTPException(
+            status_code=503,
+            detail="Historical GDACS feed unavailable"
+        )
+
+    incidents = []
+
+    for feature in data.get("features", []):
+        p = feature.get("properties") or {}
+        geometry = feature.get("geometry") or {}
+        coords = geometry.get("coordinates") or []
+
+        if geometry.get("type") != "Point" or len(coords) < 2:
+            continue
+
+        country = str(p.get("country") or "").lower()
+        if "india" not in country:
+            continue
+
+        # Include only events that started within the requested period.
+        raw_date = p.get("fromdate")
+
+        try:
+            event_date = datetime.fromisoformat(
+                str(raw_date).replace("Z", "+00:00")
+            ).date()
+        except (ValueError, TypeError):
+            continue
+
+        if not (start_date <= event_date <= end_date):
+            continue
+
+
+        report = p.get("url") or {}
+        report_url = (
+            report.get("report")
+            if isinstance(report, dict)
+            else None
+        )
+
+        incidents.append({
+            "id": f"GDACS-{p.get('eventtype')}-{p.get('eventid')}",
+            "location": p.get("name") or "India",
+            "country": p.get("country"),
+            "type": p.get("eventtype"),
+            "severity": p.get("alertlevel", "Unknown"),
+            "people": p.get("population"),
+            "time": p.get("fromdate"),
+            "latitude": coords[1],
+            "longitude": coords[0],
+            "source": "GDACS",
+            "source_url": report_url,
+            "historical": True
+        })
+
+    return {
+        "source": "GDACS",
+        "mode": "historical",
+        "country": "India",
+        "from_date": start_date.isoformat(),
+        "to_date": end_date.isoformat(),
+        "total_events": len(incidents),
+        "incidents": incidents
+    }
+
 
 
 @app.get("/priority-incidents")
@@ -383,25 +478,49 @@ def analyze_incident(incident_id: str):
             detail="Gemini API key is not configured"
         )
 
+
     try:
         incidents = fetch_gdacs()
+
         incident = next(
             (x for x in incidents if x["id"] == incident_id),
             None
         )
 
+        is_historical = False
+
+        # Search historical GDACS records if not in the live feed.
+        if incident is None:
+            history = historical_incidents(days=60)
+
+            incident = next(
+                (
+                    x for x in history["incidents"]
+                    if x["id"] == incident_id
+                ),
+                None
+            )
+
+            is_historical = incident is not None
+
+
+
         if not incident:
             raise HTTPException(
                 status_code=404,
-                detail="Incident not found in current India GDACS feed"
+                detail="Incident not found in live or historical GDACS feeds"
             )
 
         client = genai.Client(api_key=GEMINI_API_KEY)
 
+
         prompt = f"""
 You are RESQNET India's disaster intelligence analyst.
 
-Analyze this live GDACS incident:
+Analyze this {"historical" if is_historical else "current"} GDACS incident:
+If this is a historical incident, provide a retrospective
+analysis only. Do not describe it as an active emergency.
+Do not imply that response teams or resources were deployed.
 {json.dumps(incident, indent=2)}
 
 Provide:
@@ -421,13 +540,16 @@ All recommendations require human verification.
             contents=prompt
         )
 
+
         return {
             "incident_id": incident_id,
             "source": "GDACS",
             "model": "Gemini 3.6 Flash",
             "analysis": response.text,
-            "human_verification_required": True
+            "human_verification_required": True,
+            "mode": "historical" if is_historical else "live"
         }
+
 
     except HTTPException:
         raise

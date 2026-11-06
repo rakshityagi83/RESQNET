@@ -1,0 +1,4124 @@
+{
+  "type": "FeatureCollection",
+  "generator": "overpass-turbo",
+  "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.",
+  "timestamp": "2026-11-05T21:01:44Z",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "way/206939933",
+      "properties": {
+        "@id": "way/206939933",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.3804774,
+          28.6762563
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/240057776",
+      "properties": {
+        "@id": "way/240057776",
+        "building": "warehouse",
+        "building:levels": "3",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.108498,
+          28.5579107
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/240057791",
+      "properties": {
+        "@id": "way/240057791",
+        "building": "warehouse",
+        "building:levels": "5",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.1074492,
+          28.5581885
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/277890538",
+      "properties": {
+        "@id": "way/277890538",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.3807586,
+          28.6774703
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/350043388",
+      "properties": {
+        "@id": "way/350043388",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4198027,
+          28.5331279
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/351164249",
+      "properties": {
+        "@id": "way/351164249",
+        "addr:city": "Noida",
+        "addr:country": "IN",
+        "addr:housenumber": "40",
+        "addr:place": "Block-A",
+        "addr:postcode": "201301",
+        "addr:state": "UP",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.3758768,
+          28.6112004
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/351164442",
+      "properties": {
+        "@id": "way/351164442",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.377295,
+          28.6111054
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/351164449",
+      "properties": {
+        "@id": "way/351164449",
+        "addr:city": "Noida",
+        "addr:country": "IN",
+        "addr:housenumber": "41",
+        "addr:place": "Block-A",
+        "addr:postcode": "201301",
+        "addr:state": "UP",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.3760844,
+          28.611184
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/351338757",
+      "properties": {
+        "@id": "way/351338757",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.3140061,
+          28.5928615
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/351339594",
+      "properties": {
+        "@id": "way/351339594",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.9521472,
+          28.4508713
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/351339607",
+      "properties": {
+        "@id": "way/351339607",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.953473,
+          28.4513133
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/351339632",
+      "properties": {
+        "@id": "way/351339632",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.9534547,
+          28.4502641
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/351339663",
+      "properties": {
+        "@id": "way/351339663",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.9521792,
+          28.4516043
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/351339679",
+      "properties": {
+        "@id": "way/351339679",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.9534815,
+          28.4517845
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/351339700",
+      "properties": {
+        "@id": "way/351339700",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.952144,
+          28.4499755
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/351339727",
+      "properties": {
+        "@id": "way/351339727",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.9534632,
+          28.4507405
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/351339778",
+      "properties": {
+        "@id": "way/351339778",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.9527958,
+          28.4507051
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/352434996",
+      "properties": {
+        "@id": "way/352434996",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.3780141,
+          28.6124408
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/352435297",
+      "properties": {
+        "@id": "way/352435297",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.3750835,
+          28.613384
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/352971529",
+      "properties": {
+        "@id": "way/352971529",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.37611,
+          28.6136293
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/352971542",
+      "properties": {
+        "@id": "way/352971542",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.3763771,
+          28.6136
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/355103043",
+      "properties": {
+        "@id": "way/355103043",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.3792,
+          28.6134099
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/355103062",
+      "properties": {
+        "@id": "way/355103062",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.3777955,
+          28.6134992
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/415498447",
+      "properties": {
+        "@id": "way/415498447",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.8946896,
+          28.426034
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/415498479",
+      "properties": {
+        "@id": "way/415498479",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.8946896,
+          28.4252308
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/415498485",
+      "properties": {
+        "@id": "way/415498485",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.8939077,
+          28.4267298
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/415498578",
+      "properties": {
+        "@id": "way/415498578",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.8939501,
+          28.4255965
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/415498600",
+      "properties": {
+        "@id": "way/415498600",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.8946909,
+          28.4257474
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/415498604",
+      "properties": {
+        "@id": "way/415498604",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.8939118,
+          28.4264255
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/415498733",
+      "properties": {
+        "@id": "way/415498733",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.8946708,
+          28.4263349
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/415498739",
+      "properties": {
+        "@id": "way/415498739",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.8946587,
+          28.4267287
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/646812138",
+      "properties": {
+        "@id": "way/646812138",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.8232338,
+          28.2327924
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/646812139",
+      "properties": {
+        "@id": "way/646812139",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.8238345,
+          28.2310574
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/646812140",
+      "properties": {
+        "@id": "way/646812140",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.82397,
+          28.2292061
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/740083605",
+      "properties": {
+        "@id": "way/740083605",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.1308214,
+          28.7679963
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/758885670",
+      "properties": {
+        "@id": "way/758885670",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.1140461,
+          28.0402305
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/758885671",
+      "properties": {
+        "@id": "way/758885671",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.1140867,
+          28.0405512
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/881849731",
+      "properties": {
+        "@id": "way/881849731",
+        "building": "warehouse",
+        "fuel:lpg": "yes",
+        "mapillary": "1032502281007228",
+        "name": "Bharat Gas Godam",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5031261,
+          29.2210142
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/882816441",
+      "properties": {
+        "@id": "way/882816441",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.051253,
+          30.2731712
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/882816442",
+      "properties": {
+        "@id": "way/882816442",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.0516131,
+          30.2731061
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/882816443",
+      "properties": {
+        "@id": "way/882816443",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.0519494,
+          30.2729846
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/891251964",
+      "properties": {
+        "@id": "way/891251964",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5016974,
+          29.1941022
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/901366734",
+      "properties": {
+        "@id": "way/901366734",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.0957974,
+          28.5574062
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/930420271",
+      "properties": {
+        "@id": "way/930420271",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.1093154,
+          28.5577197
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/957719359",
+      "properties": {
+        "@id": "way/957719359",
+        "building": "warehouse",
+        "name": "Grain Warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.264223,
+          28.5981785
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/988088091",
+      "properties": {
+        "@id": "way/988088091",
+        "building": "warehouse",
+        "name": "Waste Materail Storate",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.0463168,
+          29.4868506
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/988088093",
+      "properties": {
+        "@id": "way/988088093",
+        "building": "warehouse",
+        "name": "MGC Raw Material",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.04549,
+          29.4864964
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/988088094",
+      "properties": {
+        "@id": "way/988088094",
+        "building": "warehouse",
+        "name": "MGC Finished Material",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.0453361,
+          29.4860823
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/988088096",
+      "properties": {
+        "@id": "way/988088096",
+        "building": "warehouse",
+        "name": "Canola Seeds Area",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.0452073,
+          29.4869245
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/993202380",
+      "properties": {
+        "@id": "way/993202380",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.4691555,
+          29.2130094
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/993202381",
+      "properties": {
+        "@id": "way/993202381",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.4693733,
+          29.2132195
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/993202382",
+      "properties": {
+        "@id": "way/993202382",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.4701773,
+          29.2121907
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/993211040",
+      "properties": {
+        "@id": "way/993211040",
+        "building": "warehouse",
+        "name": "Pal Frozen Foods",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.4737483,
+          29.1466061
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1000436572",
+      "properties": {
+        "@id": "way/1000436572",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5168579,
+          29.195026
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1050286559",
+      "properties": {
+        "@id": "way/1050286559",
+        "addr:street": "Gas Godam Road",
+        "building": "warehouse",
+        "building:levels": "2",
+        "name": "Sambhavi Enterprises",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.4943926,
+          29.2079472
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1051991788",
+      "properties": {
+        "@id": "way/1051991788",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5217102,
+          29.1963798
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1051991790",
+      "properties": {
+        "@id": "way/1051991790",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5215699,
+          29.1957571
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1051991791",
+      "properties": {
+        "@id": "way/1051991791",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5214795,
+          29.195597
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1051991792",
+      "properties": {
+        "@id": "way/1051991792",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5193686,
+          29.1965657
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1051991793",
+      "properties": {
+        "@id": "way/1051991793",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.516872,
+          29.1945719
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1051991794",
+      "properties": {
+        "@id": "way/1051991794",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5171562,
+          29.1948747
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1051991795",
+      "properties": {
+        "@id": "way/1051991795",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5188342,
+          29.1958906
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1051991796",
+      "properties": {
+        "@id": "way/1051991796",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5226003,
+          29.1941459
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1051991797",
+      "properties": {
+        "@id": "way/1051991797",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5228024,
+          29.1939879
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1051991798",
+      "properties": {
+        "@id": "way/1051991798",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5231571,
+          29.1939019
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1051991799",
+      "properties": {
+        "@id": "way/1051991799",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5222463,
+          29.1938626
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1051991800",
+      "properties": {
+        "@id": "way/1051991800",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5234319,
+          29.1937895
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1051991801",
+      "properties": {
+        "@id": "way/1051991801",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5221035,
+          29.1948832
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1051991802",
+      "properties": {
+        "@id": "way/1051991802",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5230782,
+          29.1966309
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1051991803",
+      "properties": {
+        "@id": "way/1051991803",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5233846,
+          29.1958453
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1051991804",
+      "properties": {
+        "@id": "way/1051991804",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5152771,
+          29.1942511
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1051991805",
+      "properties": {
+        "@id": "way/1051991805",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.516005,
+          29.1940643
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1052825119",
+      "properties": {
+        "@id": "way/1052825119",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.5877577,
+          28.4689083
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1052825120",
+      "properties": {
+        "@id": "way/1052825120",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.5889824,
+          28.4670424
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1052825121",
+      "properties": {
+        "@id": "way/1052825121",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.5865903,
+          28.4683065
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1052825122",
+      "properties": {
+        "@id": "way/1052825122",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.5878109,
+          28.4664438
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1052825123",
+      "properties": {
+        "@id": "way/1052825123",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.5867796,
+          28.4659161
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1052825124",
+      "properties": {
+        "@id": "way/1052825124",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.5855862,
+          28.4677788
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1053564107",
+      "properties": {
+        "@id": "way/1053564107",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.5711611,
+          28.8902291
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1053564108",
+      "properties": {
+        "@id": "way/1053564108",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.5706777,
+          28.8905394
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1053564109",
+      "properties": {
+        "@id": "way/1053564109",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.5715493,
+          28.8917526
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1053564110",
+      "properties": {
+        "@id": "way/1053564110",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.5720047,
+          28.8912595
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1053564111",
+      "properties": {
+        "@id": "way/1053564111",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.5724392,
+          28.8912642
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1053564112",
+      "properties": {
+        "@id": "way/1053564112",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.5724566,
+          28.8902426
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1053564113",
+      "properties": {
+        "@id": "way/1053564113",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.5720222,
+          28.8902379
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1053564114",
+      "properties": {
+        "@id": "way/1053564114",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.5715862,
+          28.8902315
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1055594456",
+      "properties": {
+        "@id": "way/1055594456",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5251208,
+          29.2160543
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1055594457",
+      "properties": {
+        "@id": "way/1055594457",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5255272,
+          29.2159618
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1055594458",
+      "properties": {
+        "@id": "way/1055594458",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5256811,
+          29.2157149
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1055594459",
+      "properties": {
+        "@id": "way/1055594459",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5254137,
+          29.2165014
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1055594460",
+      "properties": {
+        "@id": "way/1055594460",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5253531,
+          29.2168891
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1060093353",
+      "properties": {
+        "@id": "way/1060093353",
+        "building": "warehouse",
+        "name": "Punjab Food Departmnet",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.06763,
+          29.467103
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1060093354",
+      "properties": {
+        "@id": "way/1060093354",
+        "building": "warehouse",
+        "name": "Punjab Food Department",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          73.0667026,
+          29.4678986
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1068884942",
+      "properties": {
+        "@id": "way/1068884942",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.4690393,
+          29.212755
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1068884943",
+      "properties": {
+        "@id": "way/1068884943",
+        "addr:street": "Kamalwaganja Road",
+        "industrial": "warehouse",
+        "landuse": "industrial",
+        "name": "FCI Godown",
+        "name:hi": "उत्तराखंड राज्य भंडागरण विभाग, राज्य भंडार गृह",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.4697077,
+          29.2127128
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1070502408",
+      "properties": {
+        "@id": "way/1070502408",
+        "closed": "yes",
+        "industrial": "warehouse",
+        "landuse": "industrial",
+        "mapillary": "755479855463655",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.4518136,
+          29.2108166
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1081259206",
+      "properties": {
+        "@id": "way/1081259206",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.5398845,
+          28.5321467
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1081259207",
+      "properties": {
+        "@id": "way/1081259207",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.5404779,
+          28.5316712
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1081259891",
+      "properties": {
+        "@id": "way/1081259891",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.5380729,
+          28.532912
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1081259892",
+      "properties": {
+        "@id": "way/1081259892",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.5360381,
+          28.534104
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1081259893",
+      "properties": {
+        "@id": "way/1081259893",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.5351223,
+          28.5329187
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1081259894",
+      "properties": {
+        "@id": "way/1081259894",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.5351491,
+          28.529584
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1081259895",
+      "properties": {
+        "@id": "way/1081259895",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.5339347,
+          28.5300848
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1081259896",
+      "properties": {
+        "@id": "way/1081259896",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.5352658,
+          28.5305932
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1091240076",
+      "properties": {
+        "@id": "way/1091240076",
+        "building": "warehouse",
+        "name": "Mahaveer Sons",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5047607,
+          29.190488
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1091253882",
+      "properties": {
+        "@id": "way/1091253882",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5013245,
+          29.1945415
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1091253884",
+      "properties": {
+        "@id": "way/1091253884",
+        "building": "warehouse",
+        "name": "Uttaranchal Traders",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5097409,
+          29.1943052
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1092449047",
+      "properties": {
+        "@id": "way/1092449047",
+        "building": "warehouse",
+        "name": "Kishan Bazar Kasganj",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          78.6704506,
+          27.7961522
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1125198121",
+      "properties": {
+        "@id": "way/1125198121",
+        "building": "warehouse",
+        "name": "Indane Gas",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.6033011,
+          29.7039756
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1131860158",
+      "properties": {
+        "@id": "way/1131860158",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.5087319,
+          29.689023
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1152724458",
+      "properties": {
+        "@id": "way/1152724458",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.8703709,
+          30.3436539
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1163048654",
+      "properties": {
+        "@id": "way/1163048654",
+        "industrial": "warehouse",
+        "landuse": "industrial",
+        "name": "Uttarakhand State Warehousing Corporation",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.3895738,
+          28.9739648
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1164690045",
+      "properties": {
+        "@id": "way/1164690045",
+        "industrial": "warehouse",
+        "landuse": "industrial",
+        "name": "Indian Fertilizer Corporation",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.4104878,
+          28.9709573
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1167904320",
+      "properties": {
+        "@id": "way/1167904320",
+        "building": "warehouse",
+        "building:levels": "1",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.1648251,
+          28.7425191
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1190548697",
+      "properties": {
+        "@id": "way/1190548697",
+        "industrial": "warehouse",
+        "landuse": "industrial",
+        "name": "UCF",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5167528,
+          29.1065022
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1191707546",
+      "properties": {
+        "@id": "way/1191707546",
+        "industrial": "warehouse",
+        "landuse": "industrial",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.3913175,
+          28.9708974
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1191887670",
+      "properties": {
+        "@id": "way/1191887670",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.4177918,
+          28.9650684
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1192020326",
+      "properties": {
+        "@id": "way/1192020326",
+        "industrial": "warehouse",
+        "landuse": "industrial",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5079078,
+          28.8851184
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1195175730",
+      "properties": {
+        "@id": "way/1195175730",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          75.3968442,
+          29.7191877
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1195176391",
+      "properties": {
+        "@id": "way/1195176391",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          75.739021,
+          29.7408977
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1195176396",
+      "properties": {
+        "@id": "way/1195176396",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          75.7387552,
+          29.7359296
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1224791091",
+      "properties": {
+        "@id": "way/1224791091",
+        "industrial": "warehouse",
+        "landuse": "industrial",
+        "name": "UCF Resin Factory Warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          79.5280189,
+          29.205441
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1237472013",
+      "properties": {
+        "@id": "way/1237472013",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.8361562,
+          29.0747397
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1257470011",
+      "properties": {
+        "@id": "way/1257470011",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.9377976,
+          28.3704475
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1315461642",
+      "properties": {
+        "@id": "way/1315461642",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.6583744,
+          30.5204121
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1353096687",
+      "properties": {
+        "@id": "way/1353096687",
+        "industrial": "warehouse",
+        "landuse": "industrial",
+        "name": "Area Depot",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.1260395,
+          28.6048043
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1361096061",
+      "properties": {
+        "@id": "way/1361096061",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.0950845,
+          28.5557687
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1366752666",
+      "properties": {
+        "@id": "way/1366752666",
+        "building": "warehouse",
+        "name": "Ugaoo DEL Hub",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.1397628,
+          28.4238499
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415096",
+      "properties": {
+        "@id": "way/1390415096",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4221783,
+          28.516055
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415097",
+      "properties": {
+        "@id": "way/1390415097",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4219013,
+          28.5156326
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415098",
+      "properties": {
+        "@id": "way/1390415098",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4221642,
+          28.5153843
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415099",
+      "properties": {
+        "@id": "way/1390415099",
+        "building": "warehouse",
+        "name": "Sai Printo Pack Private Limited Noida",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4217489,
+          28.5176412
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415100",
+      "properties": {
+        "@id": "way/1390415100",
+        "building": "warehouse",
+        "name": "GXO Limited Noida Warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.421991,
+          28.5179227
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415101",
+      "properties": {
+        "@id": "way/1390415101",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4208266,
+          28.5176304
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415102",
+      "properties": {
+        "@id": "way/1390415102",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4206568,
+          28.51731
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415103",
+      "properties": {
+        "@id": "way/1390415103",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.420439,
+          28.5170006
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415104",
+      "properties": {
+        "@id": "way/1390415104",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4202815,
+          28.5166757
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415105",
+      "properties": {
+        "@id": "way/1390415105",
+        "building": "warehouse",
+        "name": "DMEGC Chengji Electronics India Private Limited",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.420754,
+          28.5160335
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415106",
+      "properties": {
+        "@id": "way/1390415106",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4210088,
+          28.5163506
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415107",
+      "properties": {
+        "@id": "way/1390415107",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4211292,
+          28.5166678
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415108",
+      "properties": {
+        "@id": "way/1390415108",
+        "building": "warehouse",
+        "name": "Sparkler Metals Private Limited",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4213415,
+          28.5170069
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415109",
+      "properties": {
+        "@id": "way/1390415109",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.421545,
+          28.5173271
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415110",
+      "properties": {
+        "@id": "way/1390415110",
+        "building": "warehouse",
+        "name": "Maruti Suzuki Service Noida",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4201931,
+          28.5163009
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415111",
+      "properties": {
+        "@id": "way/1390415111",
+        "building": "warehouse",
+        "name": "Anant Engeering Works",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4187686,
+          28.5165326
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415112",
+      "properties": {
+        "@id": "way/1390415112",
+        "building": "warehouse",
+        "name": "Combined Enterprises",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4189101,
+          28.5167923
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415113",
+      "properties": {
+        "@id": "way/1390415113",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.419073,
+          28.5170535
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415114",
+      "properties": {
+        "@id": "way/1390415114",
+        "building": "warehouse",
+        "name": "Zamya Designs Private Limited",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4192145,
+          28.5173054
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415115",
+      "properties": {
+        "@id": "way/1390415115",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4185173,
+          28.5173178
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415116",
+      "properties": {
+        "@id": "way/1390415116",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4183509,
+          28.5170597
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415117",
+      "properties": {
+        "@id": "way/1390415117",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4181987,
+          28.5167829
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415118",
+      "properties": {
+        "@id": "way/1390415118",
+        "building": "warehouse",
+        "name": "Lidix Innovations Private Limited",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4180289,
+          28.5165466
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415119",
+      "properties": {
+        "@id": "way/1390415119",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4185952,
+          28.5162853
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415120",
+      "properties": {
+        "@id": "way/1390415120",
+        "building": "warehouse",
+        "name": "3S Global",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4184058,
+          28.5160288
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415121",
+      "properties": {
+        "@id": "way/1390415121",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4178661,
+          28.5162791
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415122",
+      "properties": {
+        "@id": "way/1390415122",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4176855,
+          28.5160304
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415123",
+      "properties": {
+        "@id": "way/1390415123",
+        "building": "warehouse",
+        "name": "Star Impex Unit 2",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4182483,
+          28.5157722
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415124",
+      "properties": {
+        "@id": "way/1390415124",
+        "building": "warehouse",
+        "name": "Octobotics Tech Pivate Limited",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4179457,
+          28.5176724
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415125",
+      "properties": {
+        "@id": "way/1390415125",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4180819,
+          28.5179056
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415126",
+      "properties": {
+        "@id": "way/1390415126",
+        "building": "warehouse",
+        "name": "Mindman Machines Unit II",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4176222,
+          28.5171236
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415127",
+      "properties": {
+        "@id": "way/1390415127",
+        "building": "warehouse",
+        "name": "Balaji Mobitech Private Limited - Smart Maxx",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4173139,
+          28.5171872
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415128",
+      "properties": {
+        "@id": "way/1390415128",
+        "building": "warehouse",
+        "name": "Bharat Press Tools",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4178553,
+          28.5172894
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415129",
+      "properties": {
+        "@id": "way/1390415129",
+        "building": "warehouse",
+        "name": "Sanmti Trader",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4177762,
+          28.517389
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415130",
+      "properties": {
+        "@id": "way/1390415130",
+        "building": "warehouse",
+        "name": "PAUSE International",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4175558,
+          28.5170388
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415131",
+      "properties": {
+        "@id": "way/1390415131",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4174475,
+          28.5174014
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415132",
+      "properties": {
+        "@id": "way/1390415132",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4171913,
+          28.5167067
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415133",
+      "properties": {
+        "@id": "way/1390415133",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4173849,
+          28.5166172
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415134",
+      "properties": {
+        "@id": "way/1390415134",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4169975,
+          28.5168028
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415135",
+      "properties": {
+        "@id": "way/1390415135",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4168085,
+          28.5168989
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415136",
+      "properties": {
+        "@id": "way/1390415136",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4166334,
+          28.5169803
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415137",
+      "properties": {
+        "@id": "way/1390415137",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4164463,
+          28.5170691
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415138",
+      "properties": {
+        "@id": "way/1390415138",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4162803,
+          28.5171456
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415139",
+      "properties": {
+        "@id": "way/1390415139",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4161154,
+          28.5172336
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415140",
+      "properties": {
+        "@id": "way/1390415140",
+        "building": "warehouse",
+        "name": "Inforged Noida (Alloys wheels, Paint Protection Film PPF, Ceramic Coating, Tuning Noida)",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4159208,
+          28.5169331
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415141",
+      "properties": {
+        "@id": "way/1390415141",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4160895,
+          28.5168492
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415142",
+      "properties": {
+        "@id": "way/1390415142",
+        "building": "warehouse",
+        "name": "GOLDENARCH INFRATECH PRIVATE LIMITED",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4162859,
+          28.5167654
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415143",
+      "properties": {
+        "@id": "way/1390415143",
+        "building": "warehouse",
+        "name": "GOLDENARCH INFRATECH",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.416474,
+          28.5166636
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415144",
+      "properties": {
+        "@id": "way/1390415144",
+        "building": "warehouse",
+        "name": "Gloves Manufacturer in India (Cullinan India Noida)",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4166417,
+          28.5165855
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415145",
+      "properties": {
+        "@id": "way/1390415145",
+        "building": "warehouse",
+        "name": "Universal Electronic Agencies",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4168215,
+          28.5164983
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415146",
+      "properties": {
+        "@id": "way/1390415146",
+        "building": "warehouse",
+        "name": "CHINMAY BUILDCON INTERIORS",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4170124,
+          28.5164092
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415147",
+      "properties": {
+        "@id": "way/1390415147",
+        "building": "warehouse",
+        "name": "Infravision Transmission Solutions",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4171945,
+          28.5161551
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415148",
+      "properties": {
+        "@id": "way/1390415148",
+        "building": "warehouse",
+        "name": "Tata Motors Cars Service Centre - Sagar Motors Sector-138",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4166213,
+          28.5156244
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415149",
+      "properties": {
+        "@id": "way/1390415149",
+        "building": "warehouse",
+        "name": "Tecniqua India Private Limited",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4162765,
+          28.5157953
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415150",
+      "properties": {
+        "@id": "way/1390415150",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4159084,
+          28.5159633
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415151",
+      "properties": {
+        "@id": "way/1390415151",
+        "building": "warehouse",
+        "name": "Bigsea Marcom Office Noida",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4155563,
+          28.516114
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415152",
+      "properties": {
+        "@id": "way/1390415152",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4171224,
+          28.5156414
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390415153",
+      "properties": {
+        "@id": "way/1390415153",
+        "building": "warehouse",
+        "name": "Interior Guru Private Limited",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4171961,
+          28.5163442
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390417667",
+      "properties": {
+        "@id": "way/1390417667",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4210705,
+          28.515125
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390417668",
+      "properties": {
+        "@id": "way/1390417668",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4213889,
+          28.5149539
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390417669",
+      "properties": {
+        "@id": "way/1390417669",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4216933,
+          28.5148233
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390417670",
+      "properties": {
+        "@id": "way/1390417670",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4219481,
+          28.5146181
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390417671",
+      "properties": {
+        "@id": "way/1390417671",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4207148,
+          28.5152501
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390417672",
+      "properties": {
+        "@id": "way/1390417672",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4205034,
+          28.5155052
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390417673",
+      "properties": {
+        "@id": "way/1390417673",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4200996,
+          28.5155853
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390417674",
+      "properties": {
+        "@id": "way/1390417674",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4215617,
+          28.5157882
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390417675",
+      "properties": {
+        "@id": "way/1390417675",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4218503,
+          28.5162459
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390417676",
+      "properties": {
+        "@id": "way/1390417676",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4207544,
+          28.5135273
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390417679",
+      "properties": {
+        "@id": "way/1390417679",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4189694,
+          28.5283867
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1390417683",
+      "properties": {
+        "@id": "way/1390417683",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.41983,
+          28.5324161
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1391577584",
+      "properties": {
+        "@id": "way/1391577584",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.3675975,
+          28.5242434
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1391577585",
+      "properties": {
+        "@id": "way/1391577585",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.3673345,
+          28.5241968
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1391577586",
+      "properties": {
+        "@id": "way/1391577586",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.3671478,
+          28.5242571
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1391577587",
+      "properties": {
+        "@id": "way/1391577587",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.3676605,
+          28.5247166
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1391577588",
+      "properties": {
+        "@id": "way/1391577588",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.3673165,
+          28.5248573
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1395948872",
+      "properties": {
+        "@id": "way/1395948872",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.7299856,
+          28.7294748
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1395948873",
+      "properties": {
+        "@id": "way/1395948873",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.7283425,
+          28.729471
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1395948874",
+      "properties": {
+        "@id": "way/1395948874",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.728816,
+          28.7308453
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1395948878",
+      "properties": {
+        "@id": "way/1395948878",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.7337893,
+          28.7245478
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1395948879",
+      "properties": {
+        "@id": "way/1395948879",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          76.7329181,
+          28.7245513
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1420299077",
+      "properties": {
+        "@id": "way/1420299077",
+        "industrial": "warehouse",
+        "landuse": "industrial",
+        "name": "Food Corporation of India Mayapuri Depot",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.1297881,
+          28.6306173
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1423269093",
+      "properties": {
+        "@id": "way/1423269093",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.6798951,
+          30.1932931
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1423269094",
+      "properties": {
+        "@id": "way/1423269094",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.6799646,
+          30.1925477
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1423269095",
+      "properties": {
+        "@id": "way/1423269095",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.6790699,
+          30.1916305
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1423269096",
+      "properties": {
+        "@id": "way/1423269096",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.6794844,
+          30.1916284
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1423269097",
+      "properties": {
+        "@id": "way/1423269097",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.6799162,
+          30.1914933
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1423269098",
+      "properties": {
+        "@id": "way/1423269098",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.6806136,
+          30.1907446
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1423269099",
+      "properties": {
+        "@id": "way/1423269099",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.6806149,
+          30.1892944
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1423269100",
+      "properties": {
+        "@id": "way/1423269100",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.6801979,
+          30.1892923
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1423269101",
+      "properties": {
+        "@id": "way/1423269101",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.679776,
+          30.1892869
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1423269102",
+      "properties": {
+        "@id": "way/1423269102",
+        "area": "yes",
+        "industrial": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.6798542,
+          30.1910774
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1423269110",
+      "properties": {
+        "@id": "way/1423269110",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.6722784,
+          30.2019701
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1423269111",
+      "properties": {
+        "@id": "way/1423269111",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.6723333,
+          30.2016674
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1423269112",
+      "properties": {
+        "@id": "way/1423269112",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          74.6723858,
+          30.2013563
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1424605647",
+      "properties": {
+        "@id": "way/1424605647",
+        "industrial": "warehouse",
+        "landuse": "industrial",
+        "name": "Delhivery",
+        "name:en": "Delhivery",
+        "name:hi": "डेल्हीवरी",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.2779698,
+          28.5403732
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1426567993",
+      "properties": {
+        "@id": "way/1426567993",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.1065623,
+          28.5456557
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1426567994",
+      "properties": {
+        "@id": "way/1426567994",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.1053711,
+          28.5458152
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1459562146",
+      "properties": {
+        "@id": "way/1459562146",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.6228514,
+          28.1730818
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1465714480",
+      "properties": {
+        "@id": "way/1465714480",
+        "building": "warehouse",
+        "name": "Bhawani Cold Storage",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.7367378,
+          28.9169017
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1469454037",
+      "properties": {
+        "@id": "way/1469454037",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.7175954,
+          29.3528864
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1469454038",
+      "properties": {
+        "@id": "way/1469454038",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.7176665,
+          29.3526362
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1469454039",
+      "properties": {
+        "@id": "way/1469454039",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.7177336,
+          29.3523838
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1469454040",
+      "properties": {
+        "@id": "way/1469454040",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.7177631,
+          29.3521474
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1469454041",
+      "properties": {
+        "@id": "way/1469454041",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.7178134,
+          29.3519377
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1469454042",
+      "properties": {
+        "@id": "way/1469454042",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.7178682,
+          29.3517055
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1469541245",
+      "properties": {
+        "@id": "way/1469541245",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.7238387,
+          29.3340731
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1469541246",
+      "properties": {
+        "@id": "way/1469541246",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.7238285,
+          29.3342587
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1469541247",
+      "properties": {
+        "@id": "way/1469541247",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.7237588,
+          29.3344459
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1472917893",
+      "properties": {
+        "@id": "way/1472917893",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.8407117,
+          28.2519625
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1493562556",
+      "properties": {
+        "@id": "way/1493562556",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4403211,
+          28.6093085
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1493686575",
+      "properties": {
+        "@id": "way/1493686575",
+        "addr:block": "E",
+        "addr:city": "Delhi",
+        "addr:district": "North Delhi",
+        "addr:housenumber": "E-2,E-3",
+        "addr:postcode": "110033",
+        "addr:state": "Delhi NCR",
+        "addr:street": "Rajan Babu Road",
+        "addr:suburb": "Adarsh Nagar",
+        "brand": "Flipkart",
+        "building": "warehouse",
+        "building:levels": "1",
+        "building:levels:underground": "1",
+        "building:material": "plaster",
+        "dark_store": "yes",
+        "house": "terraced",
+        "roof:levels": "0",
+        "roof:shape": "flat",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.1764389,
+          28.7213213
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1493747615",
+      "properties": {
+        "@id": "way/1493747615",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4514796,
+          28.6084073
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1493747616",
+      "properties": {
+        "@id": "way/1493747616",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4511015,
+          28.6082117
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1493747617",
+      "properties": {
+        "@id": "way/1493747617",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4515154,
+          28.6082895
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1493750477",
+      "properties": {
+        "@id": "way/1493750477",
+        "building": "warehouse",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.4499849,
+          28.6081772
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1505805657",
+      "properties": {
+        "@id": "way/1505805657",
+        "industrial": "warehouse",
+        "landuse": "industrial",
+        "name": "Dadri Warehousing & Logistics LLP",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.5918675,
+          28.528152
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1505805658",
+      "properties": {
+        "@id": "way/1505805658",
+        "industrial": "warehouse",
+        "landuse": "industrial",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.5884983,
+          28.5278299
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1505805660",
+      "properties": {
+        "@id": "way/1505805660",
+        "industrial": "warehouse",
+        "landuse": "industrial",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.5933005,
+          28.5256202
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1505805664",
+      "properties": {
+        "@id": "way/1505805664",
+        "industrial": "warehouse",
+        "landuse": "industrial",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.5824465,
+          28.5322116
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1517696024",
+      "properties": {
+        "@id": "way/1517696024",
+        "building": "warehouse",
+        "name": "Lots Wholesale Solutions",
+        "shop": "wholesale",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.2935327,
+          28.523588
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1552467501",
+      "properties": {
+        "@id": "way/1552467501",
+        "building": "warehouse",
+        "building:levels": "2",
+        "roof:shape": "gabled",
+        "@geometry": "center"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.1037644,
+          28.5568823
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/12171240927",
+      "properties": {
+        "@id": "node/12171240927",
+        "industrial": "warehouse",
+        "landuse": "industrial",
+        "name": "V-Mart Palwal Warehouse",
+        "operator": "V-Mart"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          77.2120458,
+          28.2057348
+        ]
+      }
+    }
+  ]
+}

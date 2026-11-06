@@ -12,12 +12,21 @@ const API = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
 function App() {
   const [activeTab, setActiveTab] = useState('Overview')
   const [incidents, setIncidents] = useState([])
+  const [allIncidents, setAllIncidents] = useState([])
+  const [incidentMode, setIncidentMode] = useState('live')
+const [historicalIncidents, setHistoricalIncidents] = useState([])
+const [historyLoading, setHistoryLoading] = useState(false)
+const [historyError, setHistoryError] = useState('')
   const [warehouses, setWarehouses] = useState([])
+  const [discoveredWarehouses, setDiscoveredWarehouses] = useState([])
+  const [warehouseFilter, setWarehouseFilter] = useState('all')
+  const [incidentFilter, setIncidentFilter] = useState('all')
   const [apiStatus, setApiStatus] = useState('Connecting...')
   const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState('')
-  const [aiAnalyses, setAiAnalyses] = useState({})
-  const [analyzingId, setAnalyzingId] = useState(null)
+const [message, setMessage] = useState('')
+const [aiAnalyses, setAiAnalyses] = useState({})
+const [analyzingId, setAnalyzingId] = useState(null)
+const [selectedAnalysisId, setSelectedAnalysisId] = useState(null)
   const [allocation, setAllocation] = useState(null)
   const [allocating, setAllocating] = useState(false)
 
@@ -47,7 +56,7 @@ function App() {
 
     try {
       const [incidentResponse, warehouseResponse] = await Promise.all([
-        fetch(`${API}/priority-incidents`),
+        fetch(`${API}/india-incidents`),
         fetch(`${API}/warehouses`)
       ])
 
@@ -57,13 +66,20 @@ function App() {
       const incidentData = await incidentResponse.json()
       const warehouseData = await warehouseResponse.json()
 
-      setIncidents(incidentData.incidents || [])
+      const fetchedIncidents = incidentData.incidents || []
+
+      const priorityIncidents = fetchedIncidents.filter(
+        incident => ['Red', 'Orange'].includes(incident.severity)
+      )
+
+      setAllIncidents(fetchedIncidents)
+      setIncidents(priorityIncidents)
       setWarehouses(warehouseData)
       setApiStatus('Connected')
 
       if (
         allocationForm.incident_id &&
-        !(incidentData.incidents || []).some(
+        !priorityIncidents.some(
           item => item.id === allocationForm.incident_id
         )
       ) {
@@ -81,6 +97,81 @@ function App() {
   useEffect(() => {
     loadData()
   }, [])
+
+useEffect(() => {
+  const loadDiscoveredWarehouses = async () => {
+    try {
+      const response = await fetch(
+        `${API}/warehouses/discover/snapshot`
+      )
+
+      if (!response.ok) {
+        throw new Error('Warehouse snapshot unavailable')
+      }
+
+      const data = await response.json()
+
+      setDiscoveredWarehouses(data.warehouses || [])
+
+      console.log(
+        'Discovered warehouses:',
+        data.total
+      )
+    } catch (error) {
+      console.error(
+        'Warehouse discovery error:',
+        error
+      )
+    }
+  }
+
+  loadDiscoveredWarehouses()
+}, [])
+
+
+useEffect(() => {
+  if (incidentMode !== 'historical') return
+
+  const controller = new AbortController()
+
+  const loadHistoricalIncidents = async () => {
+    setHistoryLoading(true)
+    setHistoryError('')
+
+    try {
+      const response = await fetch(
+        `${API}/historical-incidents?days=60`,
+        { signal: controller.signal }
+      )
+
+      if (!response.ok) {
+        throw new Error('Historical GDACS data unavailable')
+      }
+
+      const data = await response.json()
+
+      if (!controller.signal.aborted) {
+        setHistoricalIncidents(
+          Array.isArray(data.incidents) ? data.incidents : []
+        )
+      }
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        setHistoryError(error.message)
+      }
+    } finally {
+      if (!controller.signal.aborted) {
+        setHistoryLoading(false)
+      }
+    }
+  }
+
+  loadHistoricalIncidents()
+
+  return () => controller.abort()
+}, [incidentMode])
+
+
 
   const updateWarehouseForm = (key, value) => {
     setWarehouseForm(previous => ({ ...previous, [key]: value }))
@@ -202,6 +293,24 @@ function App() {
       setAnalyzingId(null)
     }
   }
+
+const analyzeFromMap = (incidentId) => {
+  setSelectedAnalysisId(incidentId)
+  analyzeIncident(incidentId)
+}
+
+useEffect(() => {
+  if (!selectedAnalysisId || !aiAnalyses[selectedAnalysisId]) {
+    return
+  }
+
+  document.getElementById('gemini-analysis-panel')?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'start'
+  })
+}, [selectedAnalysisId, aiAnalyses])
+
+
 
   const previewAllocation = async (event) => {
     event.preventDefault()
@@ -363,12 +472,32 @@ function App() {
           {activeTab === 'Overview' && (
             <>
               <section className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {[
-                  ['Priority Alerts', incidents.length, Activity],
-                  ['Red Alerts', incidents.filter(x => x.severity === 'Red').length, AlertTriangle],
-                  ['Orange Alerts', incidents.filter(x => x.severity === 'Orange').length, Radio],
-                  ['Registered Warehouses', warehouses.length, Warehouse]
-                ].map(([label, value, Icon]) => (
+
+{[
+  [
+    incidentMode === 'historical' ? 'Historical Events' : 'Priority Alerts',
+    incidentMode === 'historical' ? historicalIncidents.length : incidents.length,
+    Activity
+  ],
+  [
+    incidentMode === 'historical' ? 'Historical Red Events' : 'Red Alerts',
+    (incidentMode === 'historical' ? historicalIncidents : incidents)
+      .filter(x => x.severity === 'Red').length,
+    AlertTriangle
+  ],
+  [
+    incidentMode === 'historical' ? 'Historical Orange Events' : 'Orange Alerts',
+    (incidentMode === 'historical' ? historicalIncidents : incidents)
+      .filter(x => x.severity === 'Orange').length,
+    Radio
+  ],
+  [
+    'Registered Warehouses',
+    warehouses.length,
+    Warehouse
+  ]
+].map(([label, value, Icon]) => (
+
                   <div key={label} className={cardClass}>
                     <div className="mb-3 flex justify-between">
                       <p className="text-sm text-slate-400">{label}</p>
@@ -376,8 +505,13 @@ function App() {
                     </div>
                     <h3 className="text-2xl font-bold">{value}</h3>
                     <p className="mt-2 text-xs text-slate-500">
-                      {label === 'Priority Alerts' ? 'Live India GDACS records' :
-                        label === 'Registered Warehouses' ? 'Operator-entered records' : 'Current GDACS feed'}
+
+{label === 'Registered Warehouses'
+  ? 'Current operator-entered records'
+  : incidentMode === 'historical'
+    ? 'Historical GDACS records — last 60 days'
+    : 'Current India GDACS feed'}
+
                     </p>
                   </div>
                 ))}
@@ -389,21 +523,149 @@ function App() {
                   <p className="mb-4 text-xs text-slate-500">
                     Current incident coordinates from GDACS
                   </p>
+
+<div className="mb-3 flex flex-wrap items-center gap-2">
+  {[
+    ['live', 'Live Monitoring'],
+    ['historical', 'Historical (60 days)']
+  ].map(([mode, label]) => (
+    <button
+      key={mode}
+      type="button"
+      onClick={() => setIncidentMode(mode)}
+      aria-pressed={incidentMode === mode}
+      className={`rounded-lg px-4 py-2 text-xs font-semibold ${
+        incidentMode === mode
+          ? 'bg-cyan-600 text-white'
+          : 'bg-slate-800 text-slate-300'
+      }`}
+    >
+      {label}
+    </button>
+  ))}
+</div>
+
+{incidentMode === 'historical' && (
+  <p className="mb-3 text-xs text-amber-400">
+    Historical GDACS records — not active emergency alerts.
+    {historyLoading && ' Loading records...'}
+    {historyError && ` Error: ${historyError}`}
+    {!historyLoading && !historyError &&
+      ` ${historicalIncidents.length} events loaded.`}
+  </p>
+)}
+
+
+<div className="mb-3 flex flex-wrap items-center gap-2">
+  {['all', 'Red', 'Orange', 'Green'].map(level => (
+    <button
+      key={level}
+      onClick={() => setIncidentFilter(level)}
+      className={`rounded-lg px-3 py-2 text-xs font-medium ${
+        incidentFilter === level
+          ? 'bg-cyan-600 text-white'
+          : 'bg-slate-800 text-slate-300'
+      }`}
+    >
+      {level === 'all' ? 'All Disasters' : `${level} Alerts`}
+    </button>
+  ))}
+</div>
+
+
+<div className="mb-3 flex flex-wrap items-center gap-2">
+  <button
+    onClick={() => setWarehouseFilter('all')}
+    className={`rounded-lg px-3 py-2 text-xs font-medium ${
+      warehouseFilter === 'all'
+        ? 'bg-blue-600 text-white'
+        : 'bg-slate-800 text-slate-300'
+    }`}
+  >
+    All Warehouses ({discoveredWarehouses.length})
+  </button>
+
+  <button
+    onClick={() => setWarehouseFilter('named')}
+    className={`rounded-lg px-3 py-2 text-xs font-medium ${
+      warehouseFilter === 'named'
+        ? 'bg-blue-600 text-white'
+        : 'bg-slate-800 text-slate-300'
+    }`}
+  >
+    Named Only ({
+      discoveredWarehouses.filter(
+        w => w.name && w.name !== 'Unnamed warehouse'
+      ).length
+    })
+  </button>
+</div>
+
                   <div className="h-80 overflow-hidden rounded-xl border border-slate-700">
-                    <DisasterMap incidents={incidents} />
+                  <DisasterMap
+
+incidents={
+  (
+    incidentMode === 'historical'
+      ? historicalIncidents
+      : allIncidents
+  ).filter(
+    incident =>
+      incidentFilter === 'all' ||
+      incident.severity === incidentFilter
+  )
+}
+
+                   discoveredWarehouses={
+                    warehouseFilter === 'named'
+                      ? discoveredWarehouses.filter(
+                          w => w.name && w.name !== 'Unnamed warehouse'
+                        )
+                      : discoveredWarehouses
+                  }
+
+                  onAnalyzeIncident={analyzeFromMap}
+aiAnalyses={aiAnalyses}
+analyzingId={analyzingId}
+
+                    />
                   </div>
                   <p className="mt-3 text-xs text-slate-500">
                     Map locations are source coordinates, not verified safe zones.
                   </p>
                 </div>
 
-                <div className={cardClass}>
-                  <h3 className="mb-4 font-semibold">Priority Incidents</h3>
-                  <div className="space-y-4">
-                    {incidents.length === 0 && (
-                      <p className="text-sm text-slate-500">No current Red or Orange incidents returned by GDACS.</p>
-                    )}
-                    {incidents.map(incident => (
+
+<div className={cardClass}>
+  <h3 className="mb-4 font-semibold">
+    {incidentMode === 'historical'
+      ? 'Historical Incidents'
+      : 'Priority Incidents'}
+  </h3>
+
+  {incidentMode === 'historical' && (
+    <p className="mb-3 text-xs text-amber-400">
+      Historical GDACS records only. Not active emergency alerts.
+    </p>
+  )}
+
+  <div className="space-y-4">
+    {(incidentMode === 'historical'
+      ? historicalIncidents
+      : incidents).length === 0 && (
+      <p className="text-sm text-slate-500">
+        {incidentMode === 'historical'
+          ? historyLoading
+            ? 'Loading historical incidents...'
+            : historyError || 'No historical incidents found.'
+          : 'No current Red or Orange incidents returned by GDACS.'}
+      </p>
+    )}
+
+    {(incidentMode === 'historical'
+      ? historicalIncidents
+      : incidents).map(incident => (
+
                       <div key={incident.id} className="border-b border-slate-800 pb-4 last:border-0">
                         <div className="flex justify-between gap-2">
                           <p className="text-sm font-medium">{incident.location}</p>
@@ -448,6 +710,34 @@ function App() {
                   </div>
                 </div>
               </section>
+
+              {selectedAnalysisId && aiAnalyses[selectedAnalysisId] && (
+                <section
+                  id="gemini-analysis-panel"
+                  className={`${cardClass} mb-7 scroll-mt-6`}
+                >
+                  <h3 className="mb-2 text-xl font-bold text-white">
+                    Gemini Disaster Intelligence Analysis
+                  </h3>
+
+                  <p className="mb-4 text-sm text-slate-400">
+                    Incident ID: {selectedAnalysisId}
+                  </p>
+
+                  <div className="rounded-xl border border-slate-700 bg-slate-900 p-5">
+                    <div className="max-h-[550px] overflow-y-auto">
+                      <p className="whitespace-pre-wrap break-words text-sm leading-7 text-slate-200">
+                        {aiAnalyses[selectedAnalysisId]}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="mt-4 text-sm text-amber-400">
+                    AI-generated assessment. Human verification required.
+                    Do not use as the sole basis for emergency decisions.
+                  </p>
+                </section>
+              )}
 
               <div className={cardClass}>
                 <h3 className="mb-3 font-semibold">RESQNET Coordination Status</h3>
