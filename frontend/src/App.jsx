@@ -27,6 +27,19 @@ const [message, setMessage] = useState('')
 const [aiAnalyses, setAiAnalyses] = useState({})
 const [analyzingId, setAnalyzingId] = useState(null)
 const [selectedAnalysisId, setSelectedAnalysisId] = useState(null)
+
+const [selectedRouteIncident, setSelectedRouteIncident] = useState(null)
+const [selectedRouteWarehouse, setSelectedRouteWarehouse] = useState(null)
+
+const [routeResult, setRouteResult] = useState(null)
+const [routeLoading, setRouteLoading] = useState(false)
+const [routeError, setRouteError] = useState('')
+
+const [recommendedWarehouses, setRecommendedWarehouses] = useState([])
+const [recommendationsLoading, setRecommendationsLoading] = useState(false)
+const [recommendationsError, setRecommendationsError] = useState('')
+
+
   const [allocation, setAllocation] = useState(null)
   const [allocating, setAllocating] = useState(false)
 
@@ -172,6 +185,61 @@ useEffect(() => {
 }, [incidentMode])
 
 
+useEffect(() => {
+  if (!selectedRouteIncident || !selectedRouteWarehouse) {
+    setRouteResult(null)
+    setRouteError('')
+    setRouteLoading(false)
+    return
+  }
+
+  const controller = new AbortController()
+
+  const calculateRoute = async () => {
+    setRouteLoading(true)
+    setRouteResult(null)
+    setRouteError('')
+
+    try {
+      const response = await fetch(`${API}/routing/calculate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          warehouse_lat: Number(selectedRouteWarehouse.latitude),
+          warehouse_lon: Number(selectedRouteWarehouse.longitude),
+          incident_lat: Number(selectedRouteIncident.latitude),
+          incident_lon: Number(selectedRouteIncident.longitude)
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Route calculation failed')
+      }
+
+      if (!controller.signal.aborted) {
+        setRouteResult(data)
+      }
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        setRouteError(error.message)
+      }
+    } finally {
+      if (!controller.signal.aborted) {
+        setRouteLoading(false)
+      }
+    }
+  }
+
+  calculateRoute()
+
+  return () => controller.abort()
+}, [selectedRouteIncident, selectedRouteWarehouse])
+
 
   const updateWarehouseForm = (key, value) => {
     setWarehouseForm(previous => ({ ...previous, [key]: value }))
@@ -298,6 +366,43 @@ const analyzeFromMap = (incidentId) => {
   setSelectedAnalysisId(incidentId)
   analyzeIncident(incidentId)
 }
+
+const recommendForIncident = async (incident) => {
+  setSelectedRouteIncident(incident)
+  setSelectedRouteWarehouse(null)
+  setRecommendedWarehouses([])
+  setRecommendationsError('')
+  setRecommendationsLoading(true)
+
+  try {
+    const response = await fetch(`${API}/recommendations/ranked`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        incident_lat: Number(incident.latitude),
+        incident_lon: Number(incident.longitude),
+        limit: 10
+      })
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(data.detail || 'Warehouse recommendation failed')
+    }
+
+    setRecommendedWarehouses(
+      Array.isArray(data.candidates) ? data.candidates : []
+    )
+  } catch (error) {
+    setRecommendationsError(error.message)
+  } finally {
+    setRecommendationsLoading(false)
+  }
+}
+
 
 useEffect(() => {
   if (!selectedAnalysisId || !aiAnalyses[selectedAnalysisId]) {
@@ -625,9 +730,14 @@ incidents={
                   }
 
                   onAnalyzeIncident={analyzeFromMap}
-aiAnalyses={aiAnalyses}
-analyzingId={analyzingId}
+                  selectedRouteIncident={selectedRouteIncident}
+                  selectedRouteWarehouse={selectedRouteWarehouse}
+                  aiAnalyses={aiAnalyses}
+                  analyzingId={analyzingId}
 
+                  onSelectRouteIncident={recommendForIncident}
+                  onSelectRouteWarehouse={setSelectedRouteWarehouse}
+                  routeResult={routeResult}
                     />
                   </div>
                   <p className="mt-3 text-xs text-slate-500">
@@ -710,6 +820,236 @@ analyzingId={analyzingId}
                   </div>
                 </div>
               </section>
+
+{/* Disaster-to-warehouse route planning */}
+{(selectedRouteIncident || selectedRouteWarehouse) && (
+  <section className={`${cardClass} mb-7`}>
+    <div className="mb-4">
+      <h3 className="text-xl font-bold text-white">
+        Disaster-to-Warehouse Route Planning
+      </h3>
+      <p className="mt-1 text-sm text-slate-400">
+        Select a disaster and a warehouse from the map.
+      </p>
+    </div>
+
+    <div className="grid gap-4 md:grid-cols-2">
+      <div className="rounded-xl border border-rose-500/30 bg-slate-900 p-4">
+        <p className="mb-2 text-sm font-semibold text-rose-400">
+          Selected Disaster
+        </p>
+        {selectedRouteIncident ? (
+          <>
+            <p className="font-medium">
+              {selectedRouteIncident.location}
+            </p>
+            <p className="mt-1 text-sm text-slate-400">
+              {selectedRouteIncident.type} · {selectedRouteIncident.severity}
+            </p>
+            <button
+              type="button"
+              onClick={() => setSelectedRouteIncident(null)}
+              className="mt-3 text-xs text-rose-400 hover:underline"
+            >
+              Clear selection
+            </button>
+          </>
+        ) : (
+          <p className="text-sm text-slate-500">
+            No disaster selected.
+          </p>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-blue-500/30 bg-slate-900 p-4">
+        <p className="mb-2 text-sm font-semibold text-blue-400">
+          Selected Warehouse
+        </p>
+        {selectedRouteWarehouse ? (
+          <>
+            <p className="font-medium">
+              {selectedRouteWarehouse.name || 'Unnamed warehouse'}
+            </p>
+            <p className="mt-1 text-sm text-amber-400">
+              OSM location — unverified. Inventory unknown.
+            </p>
+            <button
+              type="button"
+              onClick={() => setSelectedRouteWarehouse(null)}
+              className="mt-3 text-xs text-blue-400 hover:underline"
+            >
+              Clear selection
+            </button>
+          </>
+        ) : (
+          <p className="text-sm text-slate-500">
+            No warehouse selected.
+          </p>
+        )}
+      </div>
+    </div>
+
+
+{/* Automatic warehouse recommendations */}
+{selectedRouteIncident && (
+  <div className="mt-6">
+    <h4 className="text-lg font-semibold text-white">
+      Top Recommended Warehouse Locations
+    </h4>
+
+    <p className="mt-1 text-xs text-amber-400">
+      Ranked by estimated road travel time.
+      OSM locations are unverified and inventory is unknown.
+    </p>
+
+    {recommendationsLoading && (
+      <p className="mt-3 text-sm text-cyan-400">
+        Calculating warehouse routes...
+      </p>
+    )}
+
+    {recommendationsError && (
+      <p className="mt-3 text-sm text-rose-400" role="alert">
+        {recommendationsError}
+      </p>
+    )}
+
+    {!recommendationsLoading &&
+      !recommendationsError &&
+      recommendedWarehouses.length === 0 && (
+        <p className="mt-3 text-sm text-slate-400">
+          No warehouse recommendations available.
+        </p>
+      )}
+
+    <div className="mt-4 space-y-3">
+      {recommendedWarehouses.slice(0, 5).map((warehouse, index) => (
+        <div
+          key={warehouse.id ?? index}
+          className="rounded-xl border border-slate-700 bg-slate-900 p-4"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="font-semibold text-white">
+                #{index + 1} {warehouse.name || 'Unnamed warehouse'}
+              </p>
+
+              <p className="mt-1 text-sm text-slate-300">
+                Road distance:{' '}
+                {warehouse.road_distance_km != null
+                  ? `${warehouse.road_distance_km} km`
+                  : 'Unavailable'}
+              </p>
+
+              <p className="text-sm text-slate-300">
+                Estimated drive time:{' '}
+                {warehouse.estimated_drive_minutes != null
+                  ? `${warehouse.estimated_drive_minutes} min`
+                  : 'Unavailable'}
+              </p>
+
+              <p className="mt-1 text-xs text-amber-400">
+                Unverified location · Inventory unknown
+              </p>
+            </div>
+
+            <button
+              type="button"
+              disabled={!warehouse.road_reachable}
+              onClick={() => setSelectedRouteWarehouse(warehouse)}
+              className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {selectedRouteWarehouse?.id === warehouse.id
+                ? 'Selected'
+                : warehouse.road_reachable
+                  ? 'Select Location'
+                  : 'No Road Route'}
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
+
+
+{selectedRouteIncident && selectedRouteWarehouse && (
+  <div className="mt-5 rounded-xl border border-cyan-500/30 bg-slate-900 p-5">
+    <h4 className="mb-4 text-lg font-semibold text-white">
+      Driving Route Details
+    </h4>
+
+    {routeLoading && (
+      <p className="text-sm text-cyan-400">
+        Calculating the driving route...
+      </p>
+    )}
+
+    {routeError && (
+      <p className="text-sm text-rose-400" role="alert">
+        Route unavailable: {routeError}
+      </p>
+    )}
+
+    {!routeLoading && !routeError && !routeResult && (
+      <p className="text-sm text-slate-400">
+        Waiting for route information.
+      </p>
+    )}
+
+    {routeResult && !routeLoading && !routeError && (
+      <>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="rounded-lg bg-slate-800 p-4">
+            <p className="text-xs text-slate-400">Road Distance</p>
+            <p className="mt-2 text-2xl font-bold text-cyan-400">
+              {routeResult.distance_km} km
+            </p>
+          </div>
+
+          <div className="rounded-lg bg-slate-800 p-4">
+            <p className="text-xs text-slate-400">
+              Estimated Driving Time
+            </p>
+            <p className="mt-2 text-2xl font-bold text-white">
+              {routeResult.duration_minutes} min
+            </p>
+          </div>
+
+          <div className="rounded-lg bg-slate-800 p-4">
+            <p className="text-xs text-slate-400">Routing Status</p>
+            <p className="mt-2 text-sm font-semibold text-emerald-400">
+              Road route calculated
+            </p>
+          </div>
+        </div>
+
+        <p className="mt-4 text-xs text-slate-400">
+          Source: {routeResult.provider || 'Routing service'}
+        </p>
+
+        <p className="mt-2 text-xs text-amber-400">
+          {routeResult.warning}
+        </p>
+
+        {incidentMode === 'historical' && (
+          <p className="mt-2 text-xs font-semibold text-amber-400">
+            Historical disaster simulation only. Not an active dispatch.
+          </p>
+        )}
+      </>
+    )}
+  </div>
+)}
+
+
+    <p className="mt-3 text-xs text-amber-400">
+      Route planning is not yet connected to a road-routing service.
+      Historical incidents are for simulation only.
+      No inventory or dispatch operations are performed.
+    </p>
+  </section>
+)}
 
               {selectedAnalysisId && aiAnalyses[selectedAnalysisId] && (
                 <section

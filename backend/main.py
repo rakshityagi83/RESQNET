@@ -3,6 +3,8 @@ import requests
 import os
 import json
 from warehouse_discovery import router as warehouse_discovery_router
+from recommendation_api import router as recommendation_router
+from routing import router as routing_router
 import urllib.request
 import uuid
 
@@ -25,7 +27,8 @@ app = FastAPI(
     version="2.0.0"
 )
 app.include_router(warehouse_discovery_router)
-
+app.include_router(recommendation_router)
+app.include_router(routing_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

@@ -1,10 +1,11 @@
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import {
   MapContainer,
   TileLayer,
   Marker,
   Popup,
+  Polyline,
   useMap
 } from 'react-leaflet'
 
@@ -51,10 +52,52 @@ const warehouseIcon = L.divIcon({
   iconAnchor: [6, 6]
 })
 
-function MapUpdater({ incidents, warehouses }) {
+function MapUpdater({ incidents, warehouses, routeResult }) {
   const map = useMap()
 
+  const lastRouteRef = useRef(null)
+  const lastMarkersKeyRef = useRef('')
+
   useEffect(() => {
+    const coordinates = routeResult?.geometry?.coordinates
+
+    // Focus on a route only when a NEW route arrives.
+    if (
+      routeResult?.geometry?.type === 'LineString' &&
+      Array.isArray(coordinates) &&
+      coordinates.length >= 2
+    ) {
+      if (lastRouteRef.current === routeResult) {
+        return
+      }
+
+      const routePositions = coordinates
+        .filter(
+          point =>
+            Array.isArray(point) &&
+            point.length >= 2 &&
+            Number.isFinite(Number(point[0])) &&
+            Number.isFinite(Number(point[1]))
+        )
+        .map(([longitude, latitude]) => [
+          Number(latitude),
+          Number(longitude)
+        ])
+
+      if (routePositions.length >= 2) {
+        lastRouteRef.current = routeResult
+
+        map.fitBounds(routePositions, {
+          padding: [60, 60],
+          maxZoom: 13,
+          animate: true
+        })
+
+        return
+      }
+    }
+
+    // Default map view.
     const positions = [
       ...incidents.map(item => [
         Number(item.latitude),
@@ -66,16 +109,48 @@ function MapUpdater({ incidents, warehouses }) {
       ])
     ]
 
+    // Detect actual marker changes, not unrelated React renders.
+    const markersKey = JSON.stringify(positions)
+
+    const routeWasDisplayed = lastRouteRef.current !== null
+
+    if (
+      !routeWasDisplayed &&
+      markersKey === lastMarkersKeyRef.current
+    ) {
+      return
+    }
+
+    lastRouteRef.current = null
+    lastMarkersKeyRef.current = markersKey
+
     if (positions.length > 0) {
       map.fitBounds(positions, {
         padding: [35, 35],
         maxZoom: 9
       })
     }
-  }, [incidents, warehouses, map])
+  }, [incidents, warehouses, routeResult, map])
 
   return null
 }
+
+
+function RoutePopupCloser({ routeResult }) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (
+      routeResult?.geometry?.type === 'LineString' &&
+      routeResult.geometry.coordinates?.length >= 2
+    ) {
+      map.closePopup()
+    }
+  }, [routeResult, map])
+
+  return null
+}
+
 
 
 function DisasterMap({
@@ -83,8 +158,12 @@ function DisasterMap({
   discoveredWarehouses = [],
   onAnalyzeIncident,
   aiAnalyses = {},
-  analyzingId = null
+  analyzingId = null,
+  onSelectRouteIncident,
+  onSelectRouteWarehouse,
+  routeResult = null
 }) {
+
 
   const validCoordinates = (item) =>
     item.latitude != null &&
@@ -110,11 +189,12 @@ function DisasterMap({
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
-      <MapUpdater
-        incidents={validIncidents}
-        warehouses={validWarehouses}
-      />
-
+<MapUpdater
+  incidents={validIncidents}
+  warehouses={validWarehouses}
+  routeResult={routeResult}
+/>
+  <RoutePopupCloser routeResult={routeResult} />
      {/* Discovered warehouse locations */}
 <MarkerClusterGroup
   chunkedLoading
@@ -135,6 +215,27 @@ function DisasterMap({
             <div>Source: OpenStreetMap</div>
             <div>Status: Unverified location</div>
             <div>Inventory: Unknown</div>
+
+<button
+  type="button"
+  onClick={() => onSelectRouteWarehouse?.(warehouse)}
+  style={{
+    display: 'block',
+    width: '100%',
+    marginTop: '12px',
+    padding: '10px',
+    backgroundColor: '#2563eb',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '14px',
+    fontWeight: '600',
+    cursor: 'pointer'
+  }}
+>
+  Select for Routing
+</button>
+
             <a
               href={warehouse.source_url}
               target="_blank"
@@ -147,6 +248,22 @@ function DisasterMap({
         ))}
 </MarkerClusterGroup>
 
+
+{/* Calculated driving route */}
+{routeResult?.geometry?.type === 'LineString' &&
+  Array.isArray(routeResult.geometry.coordinates) &&
+  routeResult.geometry.coordinates.length >= 2 && (
+    <Polyline
+      positions={routeResult.geometry.coordinates.map(
+        ([longitude, latitude]) => [latitude, longitude]
+      )}
+      pathOptions={{
+        color: '#06b6d4',
+        weight: 5,
+        opacity: 0.9
+      }}
+    />
+  )}
 
       {/* Disaster incident locations */}
       {validIncidents.map(incident => (
@@ -212,27 +329,52 @@ function DisasterMap({
                 </a>
               )}
 
-{/* Gemini AI analysis */}
-<div style={{ marginTop: '12px' }}>
+
+{/* Compact popup actions */}
+<div
+  style={{
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '8px',
+    marginTop: '12px'
+  }}
+>
+  <button
+    type="button"
+    onClick={() => onSelectRouteIncident?.(incident)}
+    style={{
+      padding: '10px 6px',
+      backgroundColor: '#16a34a',
+      color: 'white',
+      border: 'none',
+      borderRadius: '7px',
+      fontSize: '13px',
+      fontWeight: '600',
+      cursor: 'pointer'
+    }}
+  >
+    Select Route
+  </button>
+
   <button
     type="button"
     onClick={() => onAnalyzeIncident?.(incident.id)}
     disabled={analyzingId !== null}
     style={{
-      width: '100%',
-      padding: '9px 12px',
+      padding: '10px 6px',
       backgroundColor: '#0891b2',
-      color: '#ffffff',
+      color: 'white',
       border: 'none',
       borderRadius: '7px',
+      fontSize: '13px',
       fontWeight: '600',
       cursor: analyzingId !== null ? 'wait' : 'pointer',
       opacity: analyzingId !== null ? 0.6 : 1
     }}
   >
     {analyzingId === incident.id
-      ? 'Analyzing with Gemini...'
-      : 'Generate AI Analysis'}
+      ? 'Analyzing...'
+      : 'AI Analysis'}
   </button>
 </div>
 
