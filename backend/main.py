@@ -7,7 +7,8 @@ from recommendation_api import router as recommendation_router
 from routing import router as routing_router
 import urllib.request
 import uuid
-
+import threading
+import time
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -49,47 +50,97 @@ def health():
     return {"status": "healthy"}
 
 
+_GDACS_CACHE = {
+    "incidents": None,
+    "fresh_until": 0.0,
+    "retry_after": 0.0
+}
+
+_GDACS_LOCK = threading.Lock()
+
+
 def fetch_gdacs():
-    url = "https://www.gdacs.org/gdacsapi/api/events/geteventlist/EVENTS4APP"
+    with _GDACS_LOCK:
+        now = time.monotonic()
 
-    request = urllib.request.Request(
-        url,
-        headers={"User-Agent": "RESQNET/2.0"}
-    )
+        # Reuse only recently fetched live data.
+        if (
+            _GDACS_CACHE["incidents"] is not None
+            and now < _GDACS_CACHE["fresh_until"]
+        ):
+            return _GDACS_CACHE["incidents"]
 
-    with urllib.request.urlopen(request, timeout=20) as response:
-        data = json.loads(response.read().decode("utf-8"))
+        # Avoid repeatedly contacting a failing service.
+        if now < _GDACS_CACHE["retry_after"]:
+            raise RuntimeError(
+                "GDACS live feed temporarily unavailable. Retry shortly."
+            )
 
-    incidents = []
+        url = (
+            "https://www.gdacs.org/gdacsapi/api/"
+            "events/geteventlist/EVENTS4APP"
+        )
 
-    for feature in data.get("features", []):
-        p = feature.get("properties", {})
-        geometry = feature.get("geometry") or {}
-        coordinates = geometry.get("coordinates", [])
+        request = urllib.request.Request(
+            url,
+            headers={"User-Agent": "RESQNET/2.0"}
+        )
 
-        country = str(p.get("country") or "").strip().lower()
+        try:
+            with urllib.request.urlopen(
+                request, timeout=12
+            ) as response:
+                data = json.loads(
+                    response.read().decode("utf-8")
+                )
 
-        if country not in {"india", "ind"}:
-            continue
+        except (OSError, ValueError) as error:
+            _GDACS_CACHE["retry_after"] = time.monotonic() + 60
 
-        if geometry.get("type") != "Point" or len(coordinates) < 2:
-            continue
+            raise RuntimeError(
+                "GDACS live feed temporarily unavailable."
+            ) from error
 
-        incidents.append({
-            "id": f"GDACS-{p.get('eventtype')}-{p.get('eventid')}",
-            "location": p.get("name") or p.get("country"),
-            "country": p.get("country"),
-            "type": p.get("eventtype", "Unknown"),
-            "severity": p.get("alertlevel", "Unknown"),
-            "people": p.get("population"),
-            "time": p.get("fromdate"),
-            "latitude": coordinates[1],
-            "longitude": coordinates[0],
-            "source": "GDACS",
-            "source_url": (p.get("url") or {}).get("report")
-        })
+        incidents = []
 
-    return incidents
+        for feature in data.get("features", []):
+            p = feature.get("properties") or {}
+            geometry = feature.get("geometry") or {}
+            coordinates = geometry.get("coordinates") or []
+
+            country = str(
+                p.get("country") or ""
+            ).strip().lower()
+
+            if country not in {"india", "ind"}:
+                continue
+
+            if (
+                geometry.get("type") != "Point"
+                or len(coordinates) < 2
+            ):
+                continue
+
+            incidents.append({
+                "id": f"GDACS-{p.get('eventtype')}-{p.get('eventid')}",
+                "location": p.get("name") or p.get("country"),
+                "country": p.get("country"),
+                "type": p.get("eventtype", "Unknown"),
+                "severity": p.get("alertlevel", "Unknown"),
+                "people": p.get("population"),
+                "time": p.get("fromdate"),
+                "latitude": coordinates[1],
+                "longitude": coordinates[0],
+                "source": "GDACS",
+                "source_url": (p.get("url") or {}).get("report")
+            })
+
+        _GDACS_CACHE["incidents"] = incidents
+        _GDACS_CACHE["fresh_until"] = time.monotonic() + 120
+        _GDACS_CACHE["retry_after"] = 0.0
+
+        return incidents
+
 
 
 @app.get("/incidents")

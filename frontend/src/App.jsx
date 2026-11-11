@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import DisasterMap from './components/DisasterMap'
 import {
   Activity, AlertTriangle, ArrowUpRight, BrainCircuit,
@@ -36,6 +36,19 @@ const [routeLoading, setRouteLoading] = useState(false)
 const [routeError, setRouteError] = useState('')
 
 const [recommendedWarehouses, setRecommendedWarehouses] = useState([])
+const [liveFeedError, setLiveFeedError] = useState('')
+const registeredRequestIdRef = useRef(0)
+const osmRequestIdRef = useRef(0)
+const [registeredRecommendations, setRegisteredRecommendations] = useState([])
+const [registeredRecommendationsLoading, setRegisteredRecommendationsLoading] = useState(false)
+const [registeredRecommendationsError, setRegisteredRecommendationsError] = useState('')
+
+const [registeredRequirements, setRegisteredRequirements] = useState({
+  food: '',
+  water: '',
+  medicine: ''
+})
+
 const [recommendationsLoading, setRecommendationsLoading] = useState(false)
 const [recommendationsError, setRecommendationsError] = useState('')
 
@@ -66,20 +79,34 @@ const [recommendationsError, setRecommendationsError] = useState('')
   const loadData = async () => {
     setLoading(true)
     setMessage('')
+    setLiveFeedError('')
 
-    try {
-      const [incidentResponse, warehouseResponse] = await Promise.all([
-        fetch(`${API}/india-incidents`),
-        fetch(`${API}/warehouses`)
-      ])
+    const [incidentResult, warehouseResult] = await Promise.allSettled([
+      (async () => {
+        const response = await fetch(`${API}/india-incidents`)
 
-      if (!incidentResponse.ok) throw new Error('India incident feed unavailable')
-      if (!warehouseResponse.ok) throw new Error('Warehouse data unavailable')
+        if (!response.ok) {
+          throw new Error(`GDACS request failed (HTTP ${response.status})`)
+        }
 
-      const incidentData = await incidentResponse.json()
-      const warehouseData = await warehouseResponse.json()
+        return response.json()
+      })(),
 
-      const fetchedIncidents = incidentData.incidents || []
+      (async () => {
+        const response = await fetch(`${API}/warehouses`)
+
+        if (!response.ok) {
+          throw new Error(`Warehouse request failed (HTTP ${response.status})`)
+        }
+
+        return response.json()
+      })()
+    ])
+
+    if (incidentResult.status === 'fulfilled') {
+      const fetchedIncidents = Array.isArray(incidentResult.value.incidents)
+        ? incidentResult.value.incidents
+        : []
 
       const priorityIncidents = fetchedIncidents.filter(
         incident => ['Red', 'Orange'].includes(incident.severity)
@@ -87,8 +114,6 @@ const [recommendationsError, setRecommendationsError] = useState('')
 
       setAllIncidents(fetchedIncidents)
       setIncidents(priorityIncidents)
-      setWarehouses(warehouseData)
-      setApiStatus('Connected')
 
       if (
         allocationForm.incident_id &&
@@ -96,16 +121,40 @@ const [recommendationsError, setRecommendationsError] = useState('')
           item => item.id === allocationForm.incident_id
         )
       ) {
-        setAllocationForm(previous => ({ ...previous, incident_id: '' }))
+        setAllocationForm(previous => ({
+          ...previous,
+          incident_id: ''
+        }))
         setAllocation(null)
       }
-    } catch (error) {
-      setApiStatus('Disconnected')
-      setMessage(error.message)
-    } finally {
-      setLoading(false)
+    } else {
+      setAllIncidents([])
+      setIncidents([])
+      setLiveFeedError(
+        'Live GDACS feed unavailable. Current incident status cannot be confirmed.'
+      )
     }
+
+    if (warehouseResult.status === 'fulfilled') {
+      setWarehouses(
+        Array.isArray(warehouseResult.value)
+          ? warehouseResult.value
+          : []
+      )
+    } else {
+      setMessage('Registered warehouse data unavailable.')
+    }
+
+    setApiStatus(
+      incidentResult.status === 'fulfilled' &&
+      warehouseResult.status === 'fulfilled'
+        ? 'Connected'
+        : 'Degraded'
+    )
+
+    setLoading(false)
   }
+
 
   useEffect(() => {
     loadData()
@@ -368,38 +417,139 @@ const analyzeFromMap = (incidentId) => {
 }
 
 const recommendForIncident = async (incident) => {
+  const requestId = ++osmRequestIdRef.current
+
+  // Invalidate previous registered warehouse requests.
+  registeredRequestIdRef.current += 1
+
   setSelectedRouteIncident(incident)
   setSelectedRouteWarehouse(null)
+
+  setRegisteredRecommendations([])
+  setRegisteredRecommendationsError('')
+  setRegisteredRecommendationsLoading(false)
+
   setRecommendedWarehouses([])
   setRecommendationsError('')
   setRecommendationsLoading(true)
 
   try {
-    const response = await fetch(`${API}/recommendations/ranked`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        incident_lat: Number(incident.latitude),
-        incident_lon: Number(incident.longitude),
-        limit: 10
-      })
-    })
+    const response = await fetch(
+      `${API}/recommendations/ranked`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          incident_lat: Number(incident.latitude),
+          incident_lon: Number(incident.longitude),
+          limit: 10
+        })
+      }
+    )
 
     const data = await response.json()
 
+    // Ignore results from a previously selected incident.
+    if (requestId !== osmRequestIdRef.current) {
+      return
+    }
+
     if (!response.ok) {
-      throw new Error(data.detail || 'Warehouse recommendation failed')
+      throw new Error(
+        typeof data.detail === 'string'
+          ? data.detail
+          : 'Warehouse recommendation failed'
+      )
     }
 
     setRecommendedWarehouses(
       Array.isArray(data.candidates) ? data.candidates : []
     )
+
   } catch (error) {
-    setRecommendationsError(error.message)
+    if (requestId === osmRequestIdRef.current) {
+      setRecommendationsError(error.message)
+    }
   } finally {
-    setRecommendationsLoading(false)
+    if (requestId === osmRequestIdRef.current) {
+      setRecommendationsLoading(false)
+    }
+  }
+}
+
+const recommendRegisteredForIncident = async (incident) => {
+  const requestId = ++registeredRequestIdRef.current
+
+  setRegisteredRecommendations([])
+  setRegisteredRecommendationsError('')
+  setRegisteredRecommendationsLoading(true)
+
+  try {
+    const requirements = {
+      food: Number(registeredRequirements.food),
+      water: Number(registeredRequirements.water),
+      medicine: Number(registeredRequirements.medicine)
+    }
+
+    if (
+      Object.values(requirements).some(
+        value => !Number.isSafeInteger(value) || value < 0
+      )
+    ) {
+      throw new Error(
+        'Enter valid non-negative whole numbers for supplies.'
+      )
+    }
+
+    if (!Object.values(requirements).some(value => value > 0)) {
+      throw new Error('Request at least one supply.')
+    }
+
+    const response = await fetch(
+      `${API}/recommendations/registered/ranked`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          incident_lat: Number(incident.latitude),
+          incident_lon: Number(incident.longitude),
+          ...requirements,
+          limit: 10
+        })
+      }
+    )
+
+    const data = await response.json()
+
+    // Ignore responses belonging to an older request or incident.
+    if (requestId !== registeredRequestIdRef.current) {
+      return
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        typeof data.detail === 'string'
+          ? data.detail
+          : 'Registered warehouse recommendation failed'
+      )
+    }
+
+    setRegisteredRecommendations(
+      Array.isArray(data.warehouses) ? data.warehouses : []
+    )
+
+  } catch (error) {
+    if (requestId === registeredRequestIdRef.current) {
+      setRegisteredRecommendationsError(error.message)
+    }
+  } finally {
+    if (requestId === registeredRequestIdRef.current) {
+      setRegisteredRecommendationsLoading(false)
+    }
   }
 }
 
@@ -768,7 +918,9 @@ incidents={
           ? historyLoading
             ? 'Loading historical incidents...'
             : historyError || 'No historical incidents found.'
-          : 'No current Red or Orange incidents returned by GDACS.'}
+
+: liveFeedError || 'No current Red or Orange incidents returned by GDACS.'}
+
       </p>
     )}
 
@@ -973,6 +1125,161 @@ incidents={
 )}
 
 
+{/* Registered warehouse inventory recommendations */}
+{selectedRouteIncident && (
+  <div className="mt-6 rounded-xl border border-cyan-500/30 bg-slate-900 p-5">
+    <h4 className="text-lg font-semibold text-white">
+      Inventory-Aware Warehouse Recommendations
+    </h4>
+
+    <p className="mt-2 text-xs text-amber-400">
+      Uses operator-recorded inventory and estimated driving times.
+      Stock and road safety are not independently verified.
+    </p>
+
+    <div className="mt-4 grid gap-4 sm:grid-cols-3">
+      {['food', 'water', 'medicine'].map(key => (
+        <label key={key} className="block text-sm text-slate-300">
+          <span className="mb-2 block capitalize">{key}</span>
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={registeredRequirements[key]}
+            onChange={e =>
+              setRegisteredRequirements(previous => ({
+                ...previous,
+                [key]: e.target.value
+              }))
+            }
+            className="w-full rounded-lg border border-slate-600 bg-slate-800 p-3 text-white"
+            placeholder="0"
+          />
+        </label>
+      ))}
+    </div>
+
+    <button
+      type="button"
+      disabled={registeredRecommendationsLoading}
+      onClick={() =>
+        recommendRegisteredForIncident(selectedRouteIncident)
+      }
+      className="mt-4 rounded-lg bg-cyan-600 px-5 py-3 font-semibold text-white disabled:opacity-50"
+    >
+      {registeredRecommendationsLoading
+        ? 'Checking inventory and routes...'
+        : 'Find Stock-Aware Warehouses'}
+    </button>
+
+    {registeredRecommendationsError && (
+      <p className="mt-3 text-sm text-rose-400" role="alert">
+        {registeredRecommendationsError}
+      </p>
+    )}
+
+{/* Registered warehouse recommendation results */}
+<div className="mt-5 space-y-3">
+  {registeredRecommendations.map((warehouse, index) => (
+    <div
+      key={warehouse.id}
+      className="rounded-xl border border-slate-700 bg-slate-800 p-4"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h5 className="font-semibold text-white">
+          #{index + 1} {warehouse.name}
+        </h5>
+
+        <span className={`rounded-lg px-3 py-1 text-xs font-semibold ${
+          warehouse.stock_status === 'full'
+            ? 'bg-green-500/20 text-green-400'
+            : warehouse.stock_status === 'partial'
+              ? 'bg-amber-500/20 text-amber-400'
+              : 'bg-red-500/20 text-red-400'
+        }`}>
+          {warehouse.stock_status === 'full'
+            ? 'Full Stock Coverage'
+            : warehouse.stock_status === 'partial'
+              ? 'Partial Stock Coverage'
+              : 'Insufficient Stock'}
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div>
+          <p className="text-xs text-slate-400">
+            Recorded Supply Coverage
+          </p>
+          <p className="text-xl font-bold text-cyan-400">
+            {warehouse.coverage_percent}%
+          </p>
+        </div>
+
+        <div>
+          <p className="text-xs text-slate-400">
+            Estimated Driving Time
+          </p>
+          <p className="text-xl font-bold text-white">
+            {warehouse.estimated_drive_minutes != null
+              ? `${warehouse.estimated_drive_minutes} min`
+              : 'Unavailable'}
+          </p>
+        </div>
+
+        <div>
+          <p className="text-xs text-slate-400">
+            Road Distance
+          </p>
+          <p className="font-semibold text-white">
+            {warehouse.road_distance_km != null
+              ? `${warehouse.road_distance_km} km`
+              : 'Unavailable'}
+          </p>
+        </div>
+
+        <div>
+          <p className="text-xs text-slate-400">
+            Modeled Road Reachability
+          </p>
+          <p className="font-semibold text-white">
+            {warehouse.road_reachable
+              ? 'Route found'
+              : 'No route found'}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 border-t border-slate-700 pt-3">
+        <p className="mb-2 text-sm font-semibold text-white">
+          Supply Shortages
+        </p>
+
+        {['food', 'water', 'medicine'].map(key => (
+          <p key={key} className="text-sm text-slate-300">
+            <span className="capitalize">{key}:</span>{' '}
+            <span className={
+              warehouse.shortages?.[key] > 0
+                ? 'text-rose-400'
+                : 'text-green-400'
+            }>
+              {warehouse.shortages?.[key] ?? 'Unknown'}
+            </span>
+          </p>
+        ))}
+      </div>
+
+      <p className="mt-3 text-xs text-amber-400">
+        Operator-recorded stock, not independently verified.
+        Routing estimates do not confirm road safety.
+      </p>
+    </div>
+  ))}
+</div>
+
+  </div>
+)}
+
+
 {selectedRouteIncident && selectedRouteWarehouse && (
   <div className="mt-5 rounded-xl border border-cyan-500/30 bg-slate-900 p-5">
     <h4 className="mb-4 text-lg font-semibold text-white">
@@ -1044,9 +1351,7 @@ incidents={
 
 
     <p className="mt-3 text-xs text-amber-400">
-      Route planning is not yet connected to a road-routing service.
-      Historical incidents are for simulation only.
-      No inventory or dispatch operations are performed.
+    Driving distances and times are estimated using OSRM. Road safety and accessibility are not independently verified. Historical incidents are demonstration scenarios. Viewing recommendations does not reserve, deduct, or dispatch supplies.
     </p>
   </section>
 )}

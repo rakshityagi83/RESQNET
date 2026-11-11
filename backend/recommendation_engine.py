@@ -122,6 +122,8 @@ def rank_candidates_by_driving_time(
     incident_lon,
     candidates
 ):
+
+
     """Rank warehouse locations using OSRM driving estimates."""
 
     if not candidates:
@@ -208,3 +210,65 @@ def rank_candidates_by_driving_time(
     )
 
     return ranked
+
+
+
+def evaluate_warehouse_inventory(warehouse, requirements):
+    """
+    Evaluate recorded warehouse stock against requested supplies.
+    Does not reserve or modify inventory.
+    """
+
+    supply_types = ("food", "water", "medicine")
+
+    requested = {
+        key: int(requirements.get(key, 0))
+        for key in supply_types
+    }
+
+    if any(value < 0 for value in requested.values()):
+        raise ValueError("Supply requirements cannot be negative")
+
+    if not any(requested.values()):
+        raise ValueError("At least one supply must be requested")
+
+    available = {
+        key: max(0, int(warehouse.get(key, 0) or 0))
+        for key in supply_types
+    }
+
+    shortages = {
+        key: max(0, requested[key] - available[key])
+        for key in supply_types
+    }
+
+    coverage = {
+        key: min(1.0, available[key] / requested[key])
+        for key in supply_types
+        if requested[key] > 0
+    }
+
+    coverage_percent = round(
+        100 * sum(coverage.values()) / len(coverage),
+        1
+    )
+
+    if all(value == 0 for value in shortages.values()):
+        stock_status = "full"
+    elif any(
+        available[key] > 0 and requested[key] > 0
+        for key in supply_types
+    ):
+        stock_status = "partial"
+    else:
+        stock_status = "insufficient"
+
+    return {
+        **warehouse,
+        "requested_supplies": requested,
+        "recorded_available": available,
+        "shortages": shortages,
+        "coverage_percent": coverage_percent,
+        "stock_status": stock_status,
+        "inventory_basis": "operator_recorded"
+    }
