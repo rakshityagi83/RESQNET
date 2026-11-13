@@ -19,6 +19,21 @@ jobs:
     name: Python Backend Tests
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: resqnet_ci_test_only
+          POSTGRES_DB: resqnet_test_concurrency
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d resqnet_test_concurrency"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     env:
       DATABASE_URL: "sqlite://"
 
@@ -45,3 +60,16 @@ jobs:
 
       - name: Run automated tests
         run: python -m pytest tests -v
+
+      - name: Initialize PostgreSQL test schema
+        env:
+          DATABASE_URL: "postgresql+psycopg://postgres:resqnet_ci_test_only@127.0.0.1:5432/resqnet_test_concurrency"
+        run: |
+          python -c "from sqlalchemy import text; from database import engine; c = engine.connect(); r = c.execute(text('SELECT current_database(), host(inet_server_addr()), inet_server_port()')).one(); assert r == ('resqnet_test_concurrency', '127.0.0.1', 5432), f'Unsafe database target: {r}'; print('Verified PostgreSQL test database:', r); c.close()"
+          python -m alembic upgrade head
+
+      - name: Run PostgreSQL reliability tests
+        env:
+          DATABASE_URL: "postgresql+psycopg://postgres:resqnet_ci_test_only@127.0.0.1:5432/resqnet_test_concurrency"
+          RESQNET_PG_TEST_URL: "postgresql+psycopg://postgres:resqnet_ci_test_only@127.0.0.1:5432/resqnet_test_concurrency"
+        run: python -m pytest tests_postgres -v
