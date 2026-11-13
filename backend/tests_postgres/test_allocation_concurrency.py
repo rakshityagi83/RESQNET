@@ -16,6 +16,16 @@ from models import Warehouse, Inventory, Allocation
 
 
 @pytest.fixture
+def admin_headers(monkeypatch):
+    # Disposable test credentials, never production secrets.
+    monkeypatch.setenv("RESQNET_ADMIN_TOKEN", "a" * 48)
+    monkeypatch.setenv("RESQNET_OPERATOR_TOKEN", "b" * 48)
+
+    return {
+        "Authorization": "Bearer " + "a" * 48
+    }
+
+@pytest.fixture
 def postgres_session(monkeypatch):
     raw_url = os.getenv("RESQNET_PG_TEST_URL")
 
@@ -143,9 +153,8 @@ def two_pending_allocations(postgres_session):
                     Warehouse.id == warehouse_id
                 ).delete(synchronize_session=False)
 
-
 def test_concurrent_approvals_cannot_overdraw(
-    two_pending_allocations
+    two_pending_allocations, admin_headers
 ):
     TestSession, warehouse_id, allocation_ids = (
         two_pending_allocations
@@ -155,7 +164,7 @@ def test_concurrent_approvals_cannot_overdraw(
     barrier = Barrier(2)
 
     def approve(allocation_id):
-        with TestClient(main.app) as client:
+        with TestClient(main.app, headers=admin_headers) as client:
             barrier.wait(timeout=10)
 
             response = client.post(
@@ -199,7 +208,7 @@ def test_concurrent_approvals_cannot_overdraw(
         assert statuses == ["APPROVED", "PENDING"]
 
 def test_same_allocation_approved_only_once(
-    two_pending_allocations
+    two_pending_allocations, admin_headers
 ):
     TestSession, warehouse_id, allocation_ids = (
         two_pending_allocations
@@ -209,7 +218,7 @@ def test_same_allocation_approved_only_once(
     barrier = Barrier(2)
 
     def approve_same_allocation():
-        with TestClient(main.app) as client:
+        with TestClient(main.app, headers=admin_headers) as client:
             barrier.wait(timeout=10)
 
             response = client.post(
@@ -254,7 +263,7 @@ def test_same_allocation_approved_only_once(
         assert other_allocation.status == "PENDING"
 
 def test_approval_rolls_back_after_database_write(
-    two_pending_allocations
+    two_pending_allocations, admin_headers
 ):
     from sqlalchemy import event
 
@@ -284,7 +293,7 @@ def test_approval_rolls_back_after_database_write(
     )
 
     try:
-        with TestClient(main.app) as client:
+        with TestClient(main.app, headers=admin_headers) as client:
             with pytest.raises(
                 RuntimeError,
                 match="Simulated failure after database write"

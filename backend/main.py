@@ -10,13 +10,14 @@ import uuid
 import threading
 import time
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from google import genai
 from sqlalchemy.orm import Session
 from database import SessionLocal
 from models import Warehouse, Inventory, Allocation
+from security import require_admin, require_operator
 
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -301,7 +302,7 @@ class AllocationInput(BaseModel):
     medicine: int = Field(ge=0)
 
 
-@app.post("/warehouses")
+@app.post("/warehouses", dependencies=[Depends(require_admin)])
 def register_warehouse(item: WarehouseInput):
     with SessionLocal.begin() as session:
         warehouse = Warehouse(
@@ -354,7 +355,10 @@ def list_warehouses():
             for warehouse, inventory in results
         ]
 
-@app.put("/warehouses/{warehouse_id}/inventory")
+@app.put(
+    "/warehouses/{warehouse_id}/inventory",
+    dependencies=[Depends(require_admin)]
+)
 def update_inventory(warehouse_id: int, item: InventoryInput):
     with SessionLocal.begin() as session:
         warehouse = session.get(Warehouse, warehouse_id)
@@ -380,7 +384,10 @@ def update_inventory(warehouse_id: int, item: InventoryInput):
         "warehouse_id": warehouse_id,
         "inventory": item.model_dump()
     }
-@app.post("/allocation/preview")
+@app.post(
+    "/allocation/preview",
+    dependencies=[Depends(require_operator)]
+)
 def allocation_preview(item: AllocationInput):
     try:
         incidents = fetch_gdacs()
@@ -467,7 +474,10 @@ def allocation_preview(item: AllocationInput):
     }
 
 
-@app.post("/allocation/{allocation_id}/approve")
+@app.post(
+    "/allocation/{allocation_id}/approve",
+    dependencies=[Depends(require_admin)]
+)
 def approve_allocation(allocation_id: str):
     with SessionLocal.begin() as session:
         record = (

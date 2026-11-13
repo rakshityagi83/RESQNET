@@ -13,6 +13,17 @@ from models import Warehouse, Inventory, Allocation
 
 
 @pytest.fixture
+def admin_headers(monkeypatch):
+    # Disposable test credentials only.
+    monkeypatch.setenv("RESQNET_ADMIN_TOKEN", "a" * 48)
+    monkeypatch.setenv("RESQNET_OPERATOR_TOKEN", "b" * 48)
+
+    return {
+        "Authorization": "Bearer " + "a" * 48
+    }
+
+
+@pytest.fixture
 def isolated_db(monkeypatch):
     # Use an isolated SQLite database, NOT real PostgreSQL.
     engine = create_engine(
@@ -79,10 +90,10 @@ def isolated_db(monkeypatch):
     engine.dispose()
 
 
-def test_approval_deducts_inventory(isolated_db):
+def test_approval_deducts_inventory(isolated_db, admin_headers):
     TestSession, warehouse_id = isolated_db
 
-    with TestClient(main.app) as client:
+    with TestClient(main.app, headers=admin_headers) as client:
         response = client.post(
             "/allocation/test-allocation-001/approve"
         )
@@ -102,10 +113,10 @@ def test_approval_deducts_inventory(isolated_db):
         assert allocation.status == "APPROVED"
 
 
-def test_duplicate_approval_rejected(isolated_db):
+def test_duplicate_approval_rejected(isolated_db, admin_headers):
     TestSession, warehouse_id = isolated_db
 
-    with TestClient(main.app) as client:
+    with TestClient(main.app, headers=admin_headers) as client:
         first = client.post(
             "/allocation/test-allocation-001/approve"
         )
@@ -124,7 +135,7 @@ def test_duplicate_approval_rejected(isolated_db):
         assert inventory.medicine == 40
 
 
-def test_insufficient_stock_rejected(isolated_db):
+def test_insufficient_stock_rejected(isolated_db, admin_headers):
     TestSession, warehouse_id = isolated_db
 
     # Simulate inventory decreasing after preview.
@@ -132,7 +143,7 @@ def test_insufficient_stock_rejected(isolated_db):
         inventory = session.get(Inventory, warehouse_id)
         inventory.food = 20
 
-    with TestClient(main.app) as client:
+    with TestClient(main.app, headers=admin_headers) as client:
         response = client.post(
             "/allocation/test-allocation-001/approve"
         )
