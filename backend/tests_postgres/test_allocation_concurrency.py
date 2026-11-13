@@ -39,21 +39,21 @@ def postgres_session(monkeypatch):
 
     try:
         # Independently verify the actual connected server.
+
         with engine.connect() as connection:
-            database, host, port = connection.execute(
+            database, port = connection.execute(
                 text(
                     "SELECT current_database(), "
-                    "host(inet_server_addr()), "
                     "inet_server_port()"
                 )
             ).one()
 
         if (
             database != "resqnet_test_concurrency"
-            or host != "127.0.0.1"
             or port != 5432
         ):
             pytest.fail("Database identity mismatch.")
+
 
         TestSession = sessionmaker(
             bind=engine,

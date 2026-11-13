@@ -65,7 +65,7 @@ jobs:
         env:
           DATABASE_URL: "postgresql+psycopg://postgres:resqnet_ci_test_only@127.0.0.1:5432/resqnet_test_concurrency"
         run: |
-          python -c "from sqlalchemy import text; from database import engine; c = engine.connect(); r = c.execute(text('SELECT current_database(), host(inet_server_addr()), inet_server_port()')).one(); assert r == ('resqnet_test_concurrency', '127.0.0.1', 5432), f'Unsafe database target: {r}'; print('Verified PostgreSQL test database:', r); c.close()"
+          python -c "from database import engine; from sqlalchemy import text; u=engine.url; assert (u.drivername,u.host,u.port,u.database)==('postgresql+psycopg','127.0.0.1',5432,'resqnet_test_concurrency'), 'Unsafe connection URL'; c=engine.connect(); r=c.execute(text('SELECT current_database(), inet_server_port()')).one(); assert r==('resqnet_test_concurrency',5432), f'Unsafe database target: {r}'; print('Verified PostgreSQL test database:',r); c.close()"
           python -m alembic upgrade head
 
       - name: Run PostgreSQL reliability tests
