@@ -118,3 +118,29 @@ class UserSession(Base):
         DateTime(timezone=True),
         nullable=True,
     )
+
+class LoginRateLimit(Base):
+    __tablename__ = "login_rate_limits"
+
+    # SHA-256 HMAC fingerprint of the rate-limit identity.
+    # No plaintext username or IP address is stored here.
+    key_hash = Column(
+        String(64),
+        primary_key=True,
+    )
+
+    failed_attempts = Column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
+
+    window_started_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
+
+    blocked_until = Column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
