@@ -4,7 +4,8 @@
 import ipaddress
 import os
 import uuid
-
+import time
+from queue import Queue
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from threading import Barrier
@@ -28,7 +29,7 @@ from rate_limit_service import (
     record_failed_login,
     login_block_remaining_seconds,
 )
-
+from rate_limit_service import acquire_login_attempt_locks
 
 @pytest.fixture
 def rate_limit_db(monkeypatch):
@@ -329,3 +330,64 @@ def test_concurrent_failures_are_counted_atomically(rate_limit_db):
         # No increments may be lost under concurrency.
         assert ip_record.failed_attempts == 8
         assert ip_record.blocked_until is None
+
+def test_concurrent_login_attempts_are_serialized(rate_limit_db):
+    """A second login for the same identity must wait for the first."""
+    TestSession, new_identity = rate_limit_db
+    username, ip = new_identity()
+
+    waiting_pid = Queue(maxsize=1)
+
+    def second_login_attempt():
+        with TestSession.begin() as db:
+            pid = db.scalar(text("SELECT pg_backend_pid()"))
+            waiting_pid.put(pid)
+
+            acquire_login_attempt_locks(db, username, ip)
+
+        return True
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        with TestSession.begin() as first_session:
+            acquire_login_attempt_locks(
+                first_session,
+                username,
+                ip,
+            )
+
+            # The first transaction now holds both identity locks.
+            future = executor.submit(second_login_attempt)
+            second_pid = waiting_pid.get(timeout=10)
+
+            # Observe PostgreSQL's actual lock-wait state.
+            deadline = time.monotonic() + 8
+            observed_wait = False
+
+            while time.monotonic() < deadline:
+                with first_session.get_bind().connect() as observer:
+                    observed_wait = observer.scalar(
+                        text("""
+                            SELECT EXISTS (
+                                SELECT 1
+                                FROM pg_locks
+                                WHERE pid = :pid
+                                  AND locktype = 'advisory'
+                                  AND NOT granted
+                            )
+                        """),
+                        {"pid": second_pid},
+                    )
+
+                if observed_wait:
+                    break
+
+                time.sleep(0.05)
+
+            assert observed_wait, (
+                "Second login did not wait for the identity lock"
+            )
+            assert not future.done()
+
+        # First transaction ended, releasing its advisory locks.
+        # Second login must now be able to continue.
+        assert future.result(timeout=15) is True

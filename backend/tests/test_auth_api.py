@@ -54,6 +54,31 @@ def isolated_auth(monkeypatch):
         "SessionLocal",
         TestSession,
     )
+        # Unit tests use SQLite; PostgreSQL behavior is tested
+    # separately in tests_postgres.
+    monkeypatch.setattr(
+        auth_api,
+        "get_login_client_ip",
+        lambda request: "127.0.0.1",
+    )
+
+    monkeypatch.setattr(
+        auth_api,
+        "acquire_login_attempt_locks",
+        lambda db, username, client_ip: None,
+    )
+
+    monkeypatch.setattr(
+        auth_api,
+        "login_block_remaining_seconds",
+        lambda db, username, client_ip: 0,
+    )
+
+    monkeypatch.setattr(
+        auth_api,
+        "record_failed_login",
+        lambda db, username, client_ip: None,
+    )
 
     monkeypatch.setenv("RESQNET_ENV", "development")
     monkeypatch.setenv("FRONTEND_URL", VALID_ORIGIN)
@@ -258,4 +283,82 @@ def test_session_creation_failure_rolls_back(
 
     with TestSession() as db:
         # The failed transaction must not persist a session.
+        assert db.scalars(select(UserSession)).all() == []
+
+def test_rate_limited_login_returns_429(
+    isolated_auth, monkeypatch
+):
+    app, TestSession = isolated_auth
+
+    monkeypatch.setattr(
+        auth_api,
+        "login_block_remaining_seconds",
+        lambda db, username, client_ip: 90,
+    )
+
+    def authentication_must_not_run(*args):
+        raise AssertionError(
+            "Blocked credentials must not be authenticated"
+        )
+
+    monkeypatch.setattr(
+        auth_api,
+        "authenticate_user",
+        authentication_must_not_run,
+    )
+
+    with TestClient(app) as client:
+        result = login(client)
+
+    assert result.status_code == 429
+    assert result.headers["retry-after"] == "90"
+    assert "resqnet_session" not in result.cookies
+
+    with TestSession() as db:
+        assert db.scalars(select(UserSession)).all() == []
+
+
+def test_failed_login_counter_commits_before_401(
+    isolated_auth, monkeypatch
+):
+    from datetime import datetime, timezone
+    from models import LoginRateLimit
+
+    app, TestSession = isolated_auth
+
+    test_key = "f" * 64
+
+    def simulate_failure_record(db, username, client_ip):
+        db.add(
+            LoginRateLimit(
+                key_hash=test_key,
+                failed_attempts=1,
+                window_started_at=datetime.now(timezone.utc),
+                blocked_until=None,
+            )
+        )
+
+    monkeypatch.setattr(
+        auth_api,
+        "record_failed_login",
+        simulate_failure_record,
+    )
+
+    with TestClient(app) as client:
+        result = login(
+            client,
+            {
+                "username": "testoperator",
+                "password": "incorrect-password",
+            },
+        )
+
+    assert result.status_code == 401
+    assert "resqnet_session" not in result.cookies
+
+    # A fresh session confirms the failure was committed.
+    with TestSession() as db:
+        record = db.get(LoginRateLimit, test_key)
+        assert record is not None
+        assert record.failed_attempts == 1
         assert db.scalars(select(UserSession)).all() == []

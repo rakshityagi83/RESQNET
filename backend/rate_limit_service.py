@@ -4,7 +4,7 @@
 import math
 from datetime import datetime, timezone
 
-from sqlalchemy import and_, case, or_, select
+from sqlalchemy import and_, case, or_, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -151,3 +151,44 @@ def login_block_remaining_seconds(
     )
 
     return max(1, math.ceil(remaining))
+
+def acquire_login_attempt_locks(
+    db: Session,
+    username: str,
+    client_ip: str,
+) -> None:
+    """Serialize login attempts sharing a username or client IP.
+
+    Must run inside the same PostgreSQL transaction as:
+    1. Checking whether login is blocked.
+    2. Authenticating the credentials.
+    3. Recording a failed login, when applicable.
+
+    PostgreSQL releases these locks when the transaction ends.
+    """
+    if db.get_bind().dialect.name != "postgresql":
+        raise RuntimeError(
+            "Login admission locking requires PostgreSQL"
+        )
+
+    identities = {
+        fingerprint_username(username),
+        fingerprint_ip(client_ip),
+    }
+
+    # Convert HMAC fingerprints into signed 64-bit lock IDs.
+    lock_ids = sorted({
+        int.from_bytes(
+            bytes.fromhex(identity[:16]),
+            byteorder="big",
+            signed=True,
+        )
+        for identity in identities
+    })
+
+    # Deterministic ordering helps prevent deadlocks.
+    for lock_id in lock_ids:
+        db.execute(
+            text("SELECT pg_advisory_xact_lock(:lock_id)"),
+            {"lock_id": lock_id},
+        )
