@@ -6,6 +6,8 @@ import hmac
 import os
 import re
 
+from fastapi import HTTPException, Request
+
 from session_service import valid_token_format
 
 
@@ -64,3 +66,28 @@ def verify_csrf_token(
         expected_token,
         submitted_token,
     )
+
+
+def check_trusted_origin(request: Request) -> None:
+    """Accept requests only from configured browser origins."""
+
+    allowed = set()
+
+    frontend = os.getenv("FRONTEND_URL", "").rstrip("/")
+
+    if frontend:
+        allowed.add(frontend)
+
+    if os.getenv("RESQNET_ENV") == "development":
+        allowed.update({
+            "http://localhost:5173",
+            "http://localhost:5174",
+        })
+
+    origin = request.headers.get("origin")
+
+    if not origin or origin not in allowed:
+        raise HTTPException(
+            status_code=403,
+            detail="Untrusted request origin",
+        )

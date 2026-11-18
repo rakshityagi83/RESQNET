@@ -564,3 +564,534 @@ def test_postgres_logout_rejects_cross_session_csrf(
     with TestSession() as db:
         assert get_authenticated_user(db, first_token) is not None
         assert get_authenticated_user(db, second_token) is not None
+
+
+@pytest.fixture
+def postgres_write_app(postgres_login, monkeypatch):
+    from fastapi import Depends
+    import session_authorization
+
+    app, TestSession, username, client_ip, user_id = (
+        postgres_login
+    )
+
+    monkeypatch.setattr(
+        session_authorization,
+        "SessionLocal",
+        TestSession,
+    )
+
+    executed = []
+
+    @app.post("/test/admin-write")
+    def admin_write(
+        principal=Depends(
+            session_authorization.require_admin_write
+        ),
+    ):
+        executed.append("admin")
+        return {"role": principal.role}
+
+    @app.post("/test/operator-write")
+    def operator_write(
+        principal=Depends(
+            session_authorization.require_operator_write
+        ),
+    ):
+        executed.append("operator")
+        return {"role": principal.role}
+
+    return app, TestSession, username, user_id, executed
+
+
+@pytest.mark.parametrize(
+    "role, endpoint, expected_status",
+    [
+        ("admin", "admin", 200),
+        ("admin", "operator", 200),
+        ("operator", "operator", 200),
+        ("operator", "admin", 403),
+    ],
+)
+def test_postgres_session_write_permissions(
+    postgres_write_app, role, endpoint, expected_status
+):
+    app, TestSession, username, user_id, executed = (
+        postgres_write_app
+    )
+
+    # Modify only the disposable test account.
+    with TestSession.begin() as db:
+        user = db.get(User, user_id)
+        user.role = role
+
+    with TestClient(app) as client:
+        authenticated = send_login(
+            client, username, TEST_PASSWORD
+        )
+
+        assert authenticated.status_code == 200
+
+        response = client.post(
+            "/test/" + endpoint + "-write",
+            headers={
+                "Origin": TEST_ORIGIN,
+                "X-CSRF-Token": authenticated.json()["csrf_token"],
+            },
+        )
+
+    assert response.status_code == expected_status
+
+    if expected_status == 200:
+        assert executed == [endpoint]
+    else:
+        assert executed == []
+
+
+@pytest.mark.parametrize(
+    "condition",
+    [
+        "missing_csrf",
+        "invalid_csrf",
+        "cross_session_csrf",
+        "untrusted_origin",
+    ],
+)
+def test_postgres_session_write_rejects_unsafe_requests(
+    postgres_write_app, condition
+):
+    app, TestSession, username, user_id, executed = (
+        postgres_write_app
+    )
+
+    with TestClient(app) as client:
+        authenticated = send_login(
+            client, username, TEST_PASSWORD
+        )
+
+        assert authenticated.status_code == 200
+
+        headers = {
+            "Origin": TEST_ORIGIN,
+            "X-CSRF-Token": authenticated.json()["csrf_token"],
+        }
+
+        if condition == "missing_csrf":
+            headers.pop("X-CSRF-Token")
+
+        elif condition == "invalid_csrf":
+            headers["X-CSRF-Token"] = "0" * 64
+
+        elif condition == "cross_session_csrf":
+            with TestClient(app) as another_client:
+                another = send_login(
+                    another_client,
+                    username,
+                    TEST_PASSWORD,
+                )
+
+                assert another.status_code == 200
+
+                headers["X-CSRF-Token"] = (
+                    another.json()["csrf_token"]
+                )
+
+        elif condition == "untrusted_origin":
+            headers["Origin"] = "https://untrusted.example"
+
+        response = client.post(
+            "/test/operator-write",
+            headers=headers,
+        )
+
+    assert response.status_code == 403
+    assert executed == []
+
+
+def test_postgres_session_write_rejects_revoked_session(
+    postgres_write_app,
+):
+    app, TestSession, username, user_id, executed = (
+        postgres_write_app
+    )
+
+    with TestClient(app) as client:
+        authenticated = send_login(
+            client, username, TEST_PASSWORD
+        )
+
+        assert authenticated.status_code == 200
+
+        token = authenticated.cookies.get("resqnet_session")
+        assert token
+
+        headers = {
+            "Origin": TEST_ORIGIN,
+            "X-CSRF-Token": authenticated.json()["csrf_token"],
+        }
+
+        logout = client.post(
+            "/auth/logout",
+            headers=headers,
+        )
+
+        assert logout.status_code == 204
+
+        # Simulate someone replaying the revoked session cookie.
+        client.cookies.set("resqnet_session", token)
+
+        response = client.post(
+            "/test/operator-write",
+            headers=headers,
+        )
+
+        assert response.status_code == 401
+
+    assert executed == []
+
+    with TestSession() as db:
+        assert get_authenticated_user(db, token) is None
+
+
+def test_postgres_session_write_enforces_role_changes(
+    postgres_write_app,
+):
+    app, TestSession, username, user_id, executed = (
+        postgres_write_app
+    )
+
+    with TestSession.begin() as db:
+        db.get(User, user_id).role = "admin"
+
+    with TestClient(app) as client:
+        authenticated = send_login(
+            client, username, TEST_PASSWORD
+        )
+
+        assert authenticated.status_code == 200
+        assert authenticated.json()["user"]["role"] == "admin"
+
+        headers = {
+            "Origin": TEST_ORIGIN,
+            "X-CSRF-Token": authenticated.json()["csrf_token"],
+        }
+
+        before = client.post(
+            "/test/admin-write",
+            headers=headers,
+        )
+
+        assert before.status_code == 200
+
+        # Remove administrative permissions from the account.
+        with TestSession.begin() as db:
+            db.get(User, user_id).role = "operator"
+
+        after = client.post(
+            "/test/admin-write",
+            headers=headers,
+        )
+
+        assert after.status_code == 403
+
+        operator = client.post(
+            "/test/operator-write",
+            headers=headers,
+        )
+
+        assert operator.status_code == 200
+
+    assert executed == ["admin", "operator"]
+
+
+@pytest.fixture
+def postgres_protected_routes(postgres_login, monkeypatch):
+    import json
+    import main
+    import security
+    import session_authorization
+
+    from models import Warehouse, Inventory, Allocation
+
+    auth_app, TestSession, username, _, user_id = postgres_login
+
+    monkeypatch.setattr(main, "SessionLocal", TestSession)
+
+    monkeypatch.setattr(
+        session_authorization,
+        "SessionLocal",
+        TestSession,
+    )
+
+    monkeypatch.setitem(
+        main.app.dependency_overrides,
+        security.require_admin,
+        session_authorization.require_admin_write,
+    )
+
+    monkeypatch.setitem(
+        main.app.dependency_overrides,
+        security.require_operator,
+        session_authorization.require_operator_write,
+    )
+
+    unique = uuid.uuid4().hex
+    warehouse_name = "PG Security Test " + unique
+    new_name = "PG Registered Test " + unique
+    allocation_id = str(uuid.uuid4())
+    incident_id = "TEST-" + unique
+
+    monkeypatch.setattr(
+        main,
+        "fetch_gdacs",
+        lambda: [{
+            "id": incident_id,
+            "location": "Test Location",
+            "severity": "Orange",
+        }],
+    )
+
+    warehouse_id = None
+
+    try:
+        with TestSession.begin() as db:
+            warehouse = Warehouse(
+                name=warehouse_name,
+                state="Haryana",
+                district="Faridabad",
+                verified_by="Automated Test",
+            )
+
+            db.add(warehouse)
+            db.flush()
+
+            warehouse_id = warehouse.id
+
+            db.add(Inventory(
+                warehouse_id=warehouse_id,
+                food=100,
+                water=200,
+                medicine=50,
+            ))
+
+            db.add(Allocation(
+                id=allocation_id,
+                incident_id=incident_id,
+                warehouse_id=warehouse_id,
+                requirements=json.dumps({
+                    "requested": {
+                        "food": 40,
+                        "water": 60,
+                        "medicine": 10,
+                    },
+                    "allocation": {
+                        "food": 40,
+                        "water": 60,
+                        "medicine": 10,
+                    },
+                    "shortages": {
+                        "food": 0,
+                        "water": 0,
+                        "medicine": 0,
+                    },
+                }),
+                status="PENDING",
+            ))
+
+        yield (
+            auth_app, main.app, TestSession,
+            username, user_id, warehouse_id,
+            allocation_id, incident_id, new_name,
+        )
+
+    finally:
+        # Clean up only warehouses belonging to this test.
+        if warehouse_id is not None:
+            with TestSession.begin() as db:
+                ids = db.scalars(
+                    select(Warehouse.id).where(
+                        Warehouse.name.in_([
+                            warehouse_name,
+                            new_name,
+                        ])
+                    )
+                ).all()
+
+                if ids:
+                    db.execute(
+                        delete(Allocation).where(
+                            Allocation.warehouse_id.in_(ids)
+                        )
+                    )
+
+                    db.execute(
+                        delete(Inventory).where(
+                            Inventory.warehouse_id.in_(ids)
+                        )
+                    )
+
+                    db.execute(
+                        delete(Warehouse).where(
+                            Warehouse.id.in_(ids)
+                        )
+                    )
+
+
+@pytest.mark.parametrize(
+    "operation",
+    ["register", "inventory", "preview", "approve"],
+)
+@pytest.mark.parametrize(
+    "condition",
+    ["admin", "operator", "missing_csrf"],
+)
+def test_postgres_actual_protected_routes(
+    postgres_protected_routes, operation, condition
+):
+    from models import Warehouse, Inventory, Allocation
+
+    (
+        auth_app, app, TestSession,
+        username, user_id, warehouse_id,
+        allocation_id, incident_id, new_name,
+    ) = postgres_protected_routes
+
+    role = "operator" if condition == "operator" else "admin"
+
+    with TestSession.begin() as db:
+        db.get(User, user_id).role = role
+
+    # Authenticate through the real PostgreSQL login endpoint.
+    with TestClient(auth_app) as auth_client:
+        authenticated = send_login(
+            auth_client, username, TEST_PASSWORD
+        )
+
+        assert authenticated.status_code == 200
+
+        token = authenticated.cookies.get("resqnet_session")
+        csrf_token = authenticated.json()["csrf_token"]
+
+        assert token
+
+    headers = {"Origin": TEST_ORIGIN}
+
+    if condition != "missing_csrf":
+        headers["X-CSRF-Token"] = csrf_token
+
+    stock = {
+        "food": 40,
+        "water": 60,
+        "medicine": 10,
+    }
+
+    with TestClient(app) as client:
+        client.cookies.set("resqnet_session", token)
+
+        if operation == "register":
+            response = client.post(
+                "/warehouses",
+                headers=headers,
+                json={
+                    "name": new_name,
+                    "state": "Haryana",
+                    "district": "Faridabad",
+                    "verified_by": "Automated Test",
+                },
+            )
+
+        elif operation == "inventory":
+            response = client.put(
+                f"/warehouses/{warehouse_id}/inventory",
+                headers=headers,
+                json=stock,
+            )
+
+        elif operation == "preview":
+            response = client.post(
+                "/allocation/preview",
+                headers=headers,
+                json={
+                    "incident_id": incident_id,
+                    "warehouse_id": warehouse_id,
+                    **stock,
+                },
+            )
+
+        else:
+            response = client.post(
+                f"/allocation/{allocation_id}/approve",
+                headers=headers,
+            )
+
+    allowed = (
+        condition == "admin"
+        or (
+            condition == "operator"
+            and operation == "preview"
+        )
+    )
+
+    assert response.status_code == (200 if allowed else 403)
+
+    with TestSession() as db:
+        inventory = db.get(Inventory, warehouse_id)
+        allocation = db.get(Allocation, allocation_id)
+
+        registered = db.scalar(
+            select(Warehouse).where(
+                Warehouse.name == new_name
+            )
+        )
+
+        allocations = db.scalars(
+            select(Allocation).where(
+                Allocation.warehouse_id == warehouse_id
+            )
+        ).all()
+
+        actual_stock = (
+            inventory.food,
+            inventory.water,
+            inventory.medicine,
+        )
+
+        if not allowed:
+            assert registered is None
+            assert actual_stock == (100, 200, 50)
+            assert allocation.status == "PENDING"
+            assert len(allocations) == 1
+            return
+
+        if operation == "register":
+            assert registered is not None
+
+            new_inventory = db.get(
+                Inventory, registered.id
+            )
+
+            assert (
+                new_inventory.food,
+                new_inventory.water,
+                new_inventory.medicine,
+            ) == (0, 0, 0)
+
+            assert actual_stock == (100, 200, 50)
+
+        elif operation == "inventory":
+            assert actual_stock == (40, 60, 10)
+
+        elif operation == "preview":
+            assert len(allocations) == 2
+
+            preview = db.get(
+                Allocation,
+                response.json()["allocation_id"],
+            )
+
+            assert preview.status == "PENDING"
+            assert actual_stock == (100, 200, 50)
+
+        elif operation == "approve":
+            assert allocation.status == "APPROVED"
+            assert actual_stock == (60, 140, 40)

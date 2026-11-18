@@ -17,7 +17,11 @@ from session_service import (
     get_authenticated_user,
 )
 from session_tokens import SESSION_LIFETIME
-from csrf_protection import generate_csrf_token, verify_csrf_token
+from csrf_protection import (
+    generate_csrf_token,
+    verify_csrf_token,
+    check_trusted_origin as check_login_origin,
+)
 from rate_limit_service import (
     acquire_login_attempt_locks,
     login_block_remaining_seconds,
@@ -53,29 +57,6 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
-def check_login_origin(request: Request) -> None:
-    """Accept requests only from configured browser origins."""
-
-    allowed = set()
-
-    frontend = os.getenv("FRONTEND_URL", "").rstrip("/")
-
-    if frontend:
-        allowed.add(frontend)
-
-    if os.getenv("RESQNET_ENV") == "development":
-        allowed.update({
-            "http://localhost:5173",
-            "http://localhost:5174",
-        })
-
-    origin = request.headers.get("origin")
-
-    if not origin or origin not in allowed:
-        raise HTTPException(
-            status_code=403,
-            detail="Untrusted request origin",
-        )
 
 
 @router.post("/login")
