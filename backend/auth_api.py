@@ -1,4 +1,3 @@
-
 """Individual account authentication API for RESQNET.
 
 Not mounted in main.py until security testing is complete.
@@ -6,25 +5,29 @@ Not mounted in main.py until security testing is complete.
 
 import os
 import ipaddress
+
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 from account_service import authenticate_user
 from database import SessionLocal
-from session_service import create_session
+from session_service import (
+    create_session,
+    revoke_session,
+    get_authenticated_user,
+)
 from session_tokens import SESSION_LIFETIME
+from csrf_protection import generate_csrf_token, verify_csrf_token
 from rate_limit_service import (
     acquire_login_attempt_locks,
     login_block_remaining_seconds,
     record_failed_login,
 )
 
-def get_login_client_ip(request: Request) -> str:
-    """Return the client IP from trusted ASGI connection data.
 
-    Never read X-Forwarded-For directly from request headers.
-    Reverse-proxy trust must be configured at the ASGI server.
-    """
+def get_login_client_ip(request: Request) -> str:
+    """Return the client IP from trusted ASGI connection data."""
+
     client = request.client
 
     if client is None:
@@ -41,6 +44,7 @@ def get_login_client_ip(request: Request) -> str:
             detail="Invalid client address",
         )
 
+
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
@@ -50,10 +54,12 @@ class LoginRequest(BaseModel):
 
 
 def check_login_origin(request: Request) -> None:
-    """Accept login requests only from configured browser origins."""
+    """Accept requests only from configured browser origins."""
+
     allowed = set()
 
     frontend = os.getenv("FRONTEND_URL", "").rstrip("/")
+
     if frontend:
         allowed.add(frontend)
 
@@ -86,17 +92,16 @@ def login(
     blocked_seconds = 0
     invalid_credentials = False
     token = None
+    csrf_token = None
     user_info = None
 
     with SessionLocal.begin() as session:
-        # Serialize attempts sharing a username or IP.
         acquire_login_attempt_locks(
             session,
             credentials.username,
             client_ip,
         )
 
-        # Check the limit while holding both identity locks.
         blocked_seconds = login_block_remaining_seconds(
             session,
             credentials.username,
@@ -111,12 +116,12 @@ def login(
             )
 
             if user is None:
-                # The transaction must commit this failure.
                 record_failed_login(
                     session,
                     credentials.username,
                     client_ip,
                 )
+
                 invalid_credentials = True
 
             else:
@@ -124,6 +129,10 @@ def login(
                     session,
                     user.id,
                 )
+
+                # Generate before commit so a missing CSRF key
+                # causes the entire transaction to roll back.
+                csrf_token = generate_csrf_token(token)
 
                 user_info = {
                     "id": user.id,
@@ -148,12 +157,11 @@ def login(
             detail="Invalid username or password",
         )
 
-    if token is None or user_info is None:
+    if token is None or csrf_token is None or user_info is None:
         raise RuntimeError(
             "Login did not produce an authenticated session"
         )
 
-    # Issue the cookie only after successful commit.
     response.set_cookie(
         key="resqnet_session",
         value=token,
@@ -164,7 +172,51 @@ def login(
         path="/",
     )
 
+    response.headers["Cache-Control"] = "no-store"
+
     return {
         "message": "Login successful",
         "user": user_info,
+        "csrf_token": csrf_token,
     }
+
+
+@router.post("/logout", status_code=204)
+def logout(request: Request) -> Response:
+    """Revoke the current session and clear its browser cookie."""
+
+    check_login_origin(request)
+
+    token = request.cookies.get("resqnet_session")
+
+    if token:
+        with SessionLocal.begin() as session:
+            user = get_authenticated_user(session, token)
+
+            if user is not None:
+                submitted_token = request.headers.get(
+                    "X-CSRF-Token"
+                )
+
+                if not verify_csrf_token(
+                    token,
+                    submitted_token,
+                ):
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Invalid or missing CSRF token",
+                    )
+
+                revoke_session(session, token)
+
+    response = Response(status_code=204)
+
+    response.delete_cookie(
+        key="resqnet_session",
+        path="/",
+        httponly=True,
+        secure=os.getenv("RESQNET_ENV") != "development",
+        samesite="lax",
+    )
+
+    return response

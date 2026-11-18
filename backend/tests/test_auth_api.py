@@ -1,6 +1,7 @@
 
 """Isolated security tests for the RESQNET login API."""
-
+from csrf_protection import verify_csrf_token
+from session_tokens import generate_session_token
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -82,7 +83,10 @@ def isolated_auth(monkeypatch):
 
     monkeypatch.setenv("RESQNET_ENV", "development")
     monkeypatch.setenv("FRONTEND_URL", VALID_ORIGIN)
-
+    monkeypatch.setenv(
+        "RESQNET_CSRF_HMAC_KEY",
+        "test-only-" + "x" * 48,
+    )
     app = FastAPI()
     app.include_router(auth_api.router)
 
@@ -362,3 +366,272 @@ def test_failed_login_counter_commits_before_401(
         assert record is not None
         assert record.failed_attempts == 1
         assert db.scalars(select(UserSession)).all() == []
+
+def test_logout_revokes_session_and_clears_cookie(
+    isolated_auth,
+):
+    app, TestSession = isolated_auth
+
+    with TestClient(app) as client:
+        login_response = login(client)
+        assert login_response.status_code == 200
+
+        token = login_response.cookies.get("resqnet_session")
+        assert token
+
+        logout_response = client.post(
+            "/auth/logout",
+            headers={
+                "Origin": VALID_ORIGIN,
+                "X-CSRF-Token": login_response.json()["csrf_token"],
+            },
+        )
+
+        assert logout_response.status_code == 204
+        assert logout_response.content == b""
+
+        cookie_header = logout_response.headers[
+            "set-cookie"
+        ].lower()
+
+        assert "resqnet_session=" in cookie_header
+        assert "max-age=0" in cookie_header
+        assert client.cookies.get("resqnet_session") is None
+
+    with TestSession() as db:
+        record = db.scalar(
+            select(UserSession).where(
+                UserSession.token_hash == hash_session_token(token)
+            )
+        )
+
+        assert record is not None
+        assert record.revoked_at is not None
+        assert get_authenticated_user(db, token) is None
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [None, "https://untrusted.example"],
+)
+def test_logout_rejects_untrusted_origin(
+    isolated_auth, origin
+):
+    app, TestSession = isolated_auth
+
+    with TestClient(app) as client:
+        login_response = login(client)
+        assert login_response.status_code == 200
+
+        token = login_response.cookies.get("resqnet_session")
+
+        headers = {}
+        if origin is not None:
+            headers["Origin"] = origin
+
+        result = client.post(
+            "/auth/logout",
+            headers=headers,
+        )
+
+        assert result.status_code == 403
+
+    # An untrusted request must not revoke the session.
+    with TestSession() as db:
+        assert get_authenticated_user(db, token) is not None
+
+
+def test_logout_without_session_is_idempotent(isolated_auth):
+    app, _ = isolated_auth
+
+    with TestClient(app) as client:
+        first = client.post(
+            "/auth/logout",
+            headers={"Origin": VALID_ORIGIN},
+        )
+        second = client.post(
+            "/auth/logout",
+            headers={"Origin": VALID_ORIGIN},
+        )
+
+    assert first.status_code == 204
+    assert second.status_code == 204
+
+
+def test_logout_db_failure_does_not_revoke_session(
+    isolated_auth, monkeypatch
+):
+    app, TestSession = isolated_auth
+
+    original_revoke = auth_api.revoke_session
+
+    def fail_after_revocation(db, token):
+        assert original_revoke(db, token) is True
+        raise RuntimeError("Simulated database failure")
+
+    monkeypatch.setattr(
+        auth_api,
+        "revoke_session",
+        fail_after_revocation,
+    )
+
+    with TestClient(
+        app,
+        raise_server_exceptions=False,
+    ) as client:
+        login_response = login(client)
+        assert login_response.status_code == 200
+
+        token = login_response.cookies.get("resqnet_session")
+
+        result = client.post(
+            "/auth/logout",
+            headers={
+                "Origin": VALID_ORIGIN,
+                "X-CSRF-Token": login_response.json()["csrf_token"],
+            },
+        )
+
+        assert result.status_code == 500
+        assert "set-cookie" not in result.headers
+
+    # The failed transaction must roll back the revocation.
+    with TestSession() as db:
+        assert get_authenticated_user(db, token) is not None
+
+def test_login_issues_session_bound_csrf_token(isolated_auth):
+    app, _ = isolated_auth
+
+    with TestClient(app) as client:
+        result = login(client)
+
+    assert result.status_code == 200
+    assert result.headers["cache-control"] == "no-store"
+
+    session_token = result.cookies.get("resqnet_session")
+    csrf_token = result.json().get("csrf_token")
+
+    assert session_token
+    assert csrf_token
+    assert csrf_token != session_token
+
+    assert verify_csrf_token(session_token, csrf_token)
+
+    # The token must not work with another browser session.
+    another_session = generate_session_token()
+
+    assert not verify_csrf_token(
+        another_session,
+        csrf_token,
+    )
+
+    # The raw session token must never appear in JSON.
+    assert session_token not in result.text
+
+
+def test_missing_csrf_key_rolls_back_login(
+    isolated_auth, monkeypatch
+):
+    app, TestSession = isolated_auth
+
+    monkeypatch.delenv(
+        "RESQNET_CSRF_HMAC_KEY",
+        raising=False,
+    )
+
+    with TestClient(
+        app,
+        raise_server_exceptions=False,
+    ) as client:
+        result = login(client)
+
+    assert result.status_code == 500
+    assert "resqnet_session" not in result.cookies
+
+    # CSRF generation failed inside the transaction.
+    # No authenticated session should have been committed.
+    with TestSession() as db:
+        assert db.scalars(select(UserSession)).all() == []
+
+
+@pytest.mark.parametrize(
+    "submitted_token",
+    [None, "0" * 64],
+)
+def test_logout_rejects_missing_or_invalid_csrf(
+    isolated_auth, submitted_token
+):
+    app, TestSession = isolated_auth
+
+    with TestClient(app) as client:
+        login_response = login(client)
+        assert login_response.status_code == 200
+
+        token = login_response.cookies.get("resqnet_session")
+        assert token
+
+        headers = {"Origin": VALID_ORIGIN}
+
+        if submitted_token is not None:
+            headers["X-CSRF-Token"] = submitted_token
+
+        response = client.post(
+            "/auth/logout",
+            headers=headers,
+        )
+
+        assert response.status_code == 403
+        assert "set-cookie" not in response.headers
+
+    with TestSession() as db:
+        assert get_authenticated_user(db, token) is not None
+
+
+def test_logout_rejects_csrf_from_another_session(
+    isolated_auth,
+):
+    app, TestSession = isolated_auth
+
+    with TestClient(app) as first_client:
+        with TestClient(app) as second_client:
+            first = login(first_client)
+            second = login(second_client)
+
+            assert first.status_code == 200
+            assert second.status_code == 200
+
+            first_token = first.cookies.get("resqnet_session")
+            second_token = second.cookies.get("resqnet_session")
+
+            assert first_token != second_token
+
+            response = first_client.post(
+                "/auth/logout",
+                headers={
+                    "Origin": VALID_ORIGIN,
+                    "X-CSRF-Token": second.json()["csrf_token"],
+                },
+            )
+
+            assert response.status_code == 403
+            assert "set-cookie" not in response.headers
+
+    with TestSession() as db:
+        assert get_authenticated_user(db, first_token) is not None
+        assert get_authenticated_user(db, second_token) is not None
+
+
+def test_logout_clears_invalid_session_cookie(isolated_auth):
+    app, _ = isolated_auth
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/auth/logout",
+            headers={
+                "Origin": VALID_ORIGIN,
+                "Cookie": "resqnet_session=invalid-token",
+            },
+        )
+
+    assert response.status_code == 204
+    assert "max-age=0" in response.headers["set-cookie"].lower()

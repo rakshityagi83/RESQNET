@@ -3,7 +3,7 @@
 
 import os
 import uuid
-
+from csrf_protection import verify_csrf_token
 import pytest
 
 from fastapi import FastAPI
@@ -14,7 +14,7 @@ from sqlalchemy.orm import sessionmaker
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 import auth_api
-
+from session_service import get_authenticated_user
 from account_service import create_user
 from login_rate_limiter import fingerprint_ip, fingerprint_username
 from models import LoginRateLimit, User, UserSession
@@ -49,6 +49,10 @@ def postgres_login(monkeypatch):
         f"2001:db8::{unique_id[:4]}:{unique_id[4:8]}"
     )
 
+    monkeypatch.setenv(
+         "RESQNET_CSRF_HMAC_KEY",
+         "test-only-" + "x" * 48,
+    )
     monkeypatch.setenv(
         "RESQNET_RATE_LIMIT_HMAC_KEY",
         "test-only-" + "x" * 48,
@@ -256,6 +260,10 @@ def test_valid_login_creates_postgres_session(
 
     cookie = response.cookies.get("resqnet_session")
     assert cookie is not None
+    csrf_token = response.json()["csrf_token"]
+
+    assert verify_csrf_token(cookie, csrf_token)
+    assert response.headers["cache-control"] == "no-store"
 
     with TestSession() as db:
         sessions = db.scalars(
@@ -355,3 +363,204 @@ def test_concurrent_login_requests_respect_rate_limit(
         ).all()
 
         assert sessions == []
+
+def test_postgres_logout_revokes_session(postgres_login):
+    """Logout must permanently invalidate the database session."""
+    app, TestSession, username, _, _ = postgres_login
+
+    with TestClient(app) as client:
+        login_response = send_login(
+            client, username, TEST_PASSWORD
+        )
+        assert login_response.status_code == 200
+
+        token = login_response.cookies.get("resqnet_session")
+        assert token
+
+        logout_response = client.post(
+            "/auth/logout",
+            headers={
+                "Origin": TEST_ORIGIN,
+                "X-CSRF-Token": login_response.json()["csrf_token"],
+            },
+        )
+
+        assert logout_response.status_code == 204
+        assert logout_response.content == b""
+        assert client.cookies.get("resqnet_session") is None
+
+        # Repeating logout must also be harmless.
+        repeated = client.post(
+            "/auth/logout",
+            headers={"Origin": TEST_ORIGIN},
+        )
+        assert repeated.status_code == 204
+
+    with TestSession() as db:
+        record = db.scalar(
+            select(UserSession).where(
+                UserSession.token_hash == hash_session_token(token)
+            )
+        )
+
+        assert record is not None
+        assert record.revoked_at is not None
+        assert get_authenticated_user(db, token) is None
+
+
+def test_postgres_logout_rejects_untrusted_origin(
+    postgres_login,
+):
+    """An untrusted origin cannot revoke another user's session."""
+    app, TestSession, username, _, _ = postgres_login
+
+    with TestClient(app) as client:
+        login_response = send_login(
+            client, username, TEST_PASSWORD
+        )
+        assert login_response.status_code == 200
+
+        token = login_response.cookies.get("resqnet_session")
+        assert token
+
+        response = client.post(
+            "/auth/logout",
+            headers={"Origin": "https://untrusted.example"},
+        )
+
+        assert response.status_code == 403
+
+    with TestSession() as db:
+        assert get_authenticated_user(db, token) is not None
+
+
+def test_postgres_logout_failure_rolls_back(
+    postgres_login, monkeypatch
+):
+    """A database exception must not partially revoke a session."""
+    app, TestSession, username, _, _ = postgres_login
+
+    original_revoke = auth_api.revoke_session
+
+    def simulate_failure(db, token):
+        assert original_revoke(db, token) is True
+        raise RuntimeError("Simulated PostgreSQL failure")
+
+    monkeypatch.setattr(
+        auth_api,
+        "revoke_session",
+        simulate_failure,
+    )
+
+    with TestClient(
+        app,
+        raise_server_exceptions=False,
+    ) as client:
+        login_response = send_login(
+            client, username, TEST_PASSWORD
+        )
+        assert login_response.status_code == 200
+
+        token = login_response.cookies.get("resqnet_session")
+        assert token
+
+        response = client.post(
+            "/auth/logout",
+            headers={
+                "Origin": TEST_ORIGIN,
+                "X-CSRF-Token": login_response.json()["csrf_token"],
+            },
+        )
+
+        assert response.status_code == 500
+        assert "set-cookie" not in response.headers
+
+    with TestSession() as db:
+        # Revocation must have been rolled back.
+        assert get_authenticated_user(db, token) is not None
+
+
+@pytest.mark.parametrize(
+    "submitted_token",
+    [None, "0" * 64],
+)
+def test_postgres_logout_rejects_missing_or_invalid_csrf(
+    postgres_login, submitted_token
+):
+    app, TestSession, username, _, _ = postgres_login
+
+    with TestClient(app) as client:
+        login_response = send_login(
+            client, username, TEST_PASSWORD
+        )
+
+        assert login_response.status_code == 200
+
+        token = login_response.cookies.get("resqnet_session")
+        assert token
+
+        headers = {"Origin": TEST_ORIGIN}
+
+        if submitted_token is not None:
+            headers["X-CSRF-Token"] = submitted_token
+
+        response = client.post(
+            "/auth/logout",
+            headers=headers,
+        )
+
+        assert response.status_code == 403
+        assert "set-cookie" not in response.headers
+        assert client.cookies.get("resqnet_session") == token
+
+    with TestSession() as db:
+        assert get_authenticated_user(db, token) is not None
+
+        record = db.scalar(
+            select(UserSession).where(
+                UserSession.token_hash == hash_session_token(token)
+            )
+        )
+
+        assert record is not None
+        assert record.revoked_at is None
+
+
+def test_postgres_logout_rejects_cross_session_csrf(
+    postgres_login,
+):
+    app, TestSession, username, _, _ = postgres_login
+
+    with TestClient(app) as first_client:
+        with TestClient(app) as second_client:
+            first = send_login(
+                first_client, username, TEST_PASSWORD
+            )
+            second = send_login(
+                second_client, username, TEST_PASSWORD
+            )
+
+            assert first.status_code == 200
+            assert second.status_code == 200
+
+            first_token = first.cookies.get("resqnet_session")
+            second_token = second.cookies.get("resqnet_session")
+
+            assert first_token
+            assert second_token
+            assert first_token != second_token
+
+            response = first_client.post(
+                "/auth/logout",
+                headers={
+                    "Origin": TEST_ORIGIN,
+                    "X-CSRF-Token": second.json()["csrf_token"],
+                },
+            )
+
+            assert response.status_code == 403
+            assert "set-cookie" not in response.headers
+
+    with TestSession() as db:
+        assert get_authenticated_user(db, first_token) is not None
+        assert get_authenticated_user(db, second_token) is not None
