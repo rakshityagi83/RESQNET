@@ -5,7 +5,7 @@ from pydantic import ConfigDict, StringConstraints, field_validator
 from datetime import datetime as audit_datetime, timezone as audit_timezone
 from fastapi import Response
 from typing import Literal
-from sqlalchemy import or_
+from sqlalchemy import or_, update
 from session_authorization import (
     SessionPrincipal,
     require_session_admin,
@@ -298,10 +298,14 @@ class WarehouseInput(BaseModel):
     medicine: int = Field(default=0, ge=0, le=2147483647, strict=True)
 
 
-class InventoryInput(BaseModel):
-    food: int = Field(ge=0)
-    water: int = Field(ge=0)
-    medicine: int = Field(ge=0)
+class InventoryQuantities(BaseModel):
+    food: int = Field(ge=0, le=2147483647, strict=True)
+    water: int = Field(ge=0, le=2147483647, strict=True)
+    medicine: int = Field(ge=0, le=2147483647, strict=True)
+
+
+class InventoryInput(InventoryQuantities):
+    expected: InventoryQuantities
 
 
 class AllocationInput(BaseModel):
@@ -376,28 +380,46 @@ def list_warehouses():
 )
 def update_inventory(warehouse_id: int, item: InventoryInput):
     with SessionLocal.begin() as session:
-        warehouse = session.get(Warehouse, warehouse_id)
-
-        if warehouse is None:
-            raise HTTPException(
-                status_code=404,
-                detail="Warehouse not found"
+        result = session.execute(
+            update(Inventory)
+            .where(
+                Inventory.warehouse_id == warehouse_id,
+                Inventory.food == item.expected.food,
+                Inventory.water == item.expected.water,
+                Inventory.medicine == item.expected.medicine,
             )
+            .values(
+                food=item.food,
+                water=item.water,
+                medicine=item.medicine,
+            )
+        )
 
-        inventory = session.get(Inventory, warehouse_id)
+        if result.rowcount != 1:
+            if session.get(Warehouse, warehouse_id) is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Warehouse not found",
+                )
 
-        if inventory is None:
-            inventory = Inventory(warehouse_id=warehouse_id)
-            session.add(inventory)
+            if session.get(Inventory, warehouse_id) is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Warehouse inventory not initialized",
+                )
 
-        inventory.food = item.food
-        inventory.water = item.water
-        inventory.medicine = item.medicine
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Inventory has changed since it was loaded. "
+                    "Refresh and retry."
+                ),
+            )
 
     return {
         "message": "Inventory updated",
         "warehouse_id": warehouse_id,
-        "inventory": item.model_dump()
+        "inventory": item.model_dump(exclude={"expected"})
     }
 @app.post(
     "/allocation/preview",

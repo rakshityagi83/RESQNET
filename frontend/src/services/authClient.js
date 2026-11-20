@@ -17,6 +17,8 @@ function errorMessage(status) {
       return 'Request forbidden or permission denied.'
     case 422:
       return 'Invalid authentication request.'
+    case 409:
+      return 'Request conflicts with current server state. Refresh and retry.'
     case 429:
       return 'Too many login attempts. Try again later.'
     default:

@@ -112,6 +112,11 @@ def test_admin_can_update_inventory(authorized_app):
                 "food": 150,
                 "water": 300,
                 "medicine": 75,
+                "expected": {
+                    "food": 100,
+                    "water": 200,
+                    "medicine": 50,
+                },
             },
         )
 
@@ -292,3 +297,96 @@ def test_atomic_registration_rolls_back_on_inventory_failure(
         assert db.query(Warehouse).filter(
             Warehouse.name == "Rollback Registration Test"
         ).count() == 0
+
+
+
+def test_stale_inventory_snapshot_rejected(authorized_app):
+    TestSession, warehouse_id, headers = authorized_app
+
+    # Another operation changes the displayed stock.
+    with TestSession.begin() as db:
+        inventory = db.get(Inventory, warehouse_id)
+        inventory.food = 60
+
+    with TestClient(main.app, headers=headers["admin"]) as client:
+        response = client.put(
+            f"/warehouses/{warehouse_id}/inventory",
+            json={
+                "food": 150,
+                "water": 300,
+                "medicine": 75,
+                "expected": {
+                    "food": 100,
+                    "water": 200,
+                    "medicine": 50,
+                },
+            },
+        )
+
+    assert response.status_code == 409
+
+    with TestSession() as db:
+        inventory = db.get(Inventory, warehouse_id)
+        assert (
+            inventory.food,
+            inventory.water,
+            inventory.medicine,
+        ) == (60, 200, 50)
+
+
+def test_inventory_update_requires_snapshot(authorized_app):
+    TestSession, warehouse_id, headers = authorized_app
+
+    with TestClient(main.app, headers=headers["admin"]) as client:
+        response = client.put(
+            f"/warehouses/{warehouse_id}/inventory",
+            json={
+                "food": 150,
+                "water": 300,
+                "medicine": 75,
+            },
+        )
+
+    assert response.status_code == 422
+
+    with TestSession() as db:
+        inventory = db.get(Inventory, warehouse_id)
+        assert (
+            inventory.food,
+            inventory.water,
+            inventory.medicine,
+        ) == (100, 200, 50)
+
+
+@pytest.mark.parametrize(
+    "invalid", [-1, 1.5, "100", True, 2147483648]
+)
+def test_inventory_update_rejects_invalid_snapshot(
+    authorized_app, invalid
+):
+    TestSession, warehouse_id, headers = authorized_app
+
+    with TestClient(main.app, headers=headers["admin"]) as client:
+        response = client.put(
+            f"/warehouses/{warehouse_id}/inventory",
+            json={
+                "food": 150,
+                "water": 300,
+                "medicine": 75,
+                "expected": {
+                    "food": invalid,
+                    "water": 200,
+                    "medicine": 50,
+                },
+            },
+        )
+
+    assert response.status_code == 422
+
+    with TestSession() as db:
+        inventory = db.get(Inventory, warehouse_id)
+        assert (
+            inventory.food,
+            inventory.water,
+            inventory.medicine,
+        ) == (100, 200, 50)

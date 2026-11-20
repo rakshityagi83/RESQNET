@@ -991,7 +991,14 @@ def test_postgres_actual_protected_routes(
             response = client.put(
                 f"/warehouses/{warehouse_id}/inventory",
                 headers=headers,
-                json=stock,
+                json={
+                    **stock,
+                    "expected": {
+                        "food": 100,
+                        "water": 200,
+                        "medicine": 50,
+                    },
+                },
             )
 
         elif operation == "preview":

@@ -6,6 +6,7 @@ import PendingAllocationQueue from './components/PendingAllocationQueue.jsx'
 import { useAuth } from './auth/AuthContext.jsx'
 import { authClient, AuthApiError } from './services/authClient.js'
 import { submitWarehouseRegistration } from './utils/warehouseRegistration.js'
+import { submitInventoryUpdate } from './utils/inventoryUpdate.js'
 import {
   Activity, AlertTriangle, ArrowUpRight, BrainCircuit,
   CheckCircle2, Clock, Droplets, HeartPulse, Package,
@@ -121,6 +122,7 @@ const [recommendationsError, setRecommendationsError] = useState('')
   }, [user?.id, user?.role])
 
   const warehouseRegistrationLock = useRef(false)
+  const inventoryUpdateLock = useRef(false)
 
   const [warehouseForm, setWarehouseForm] = useState({
     name: '',
@@ -413,37 +415,49 @@ useEffect(() => {
       return
     }
 
-    const food = window.prompt('Enter confirmed food stock:', warehouse.food)
-    if (food === null) return
-    const water = window.prompt('Enter confirmed water stock:', warehouse.water)
-    if (water === null) return
-    const medicine = window.prompt('Enter confirmed medicine stock:', warehouse.medicine)
-    if (medicine === null) return
-
-    const values = [food, water, medicine].map(Number)
-    if (values.some(value => !Number.isInteger(value) || value < 0)) {
-      setMessage('Enter non-negative whole numbers for all stock quantities.')
-      return
-    }
+    if (inventoryUpdateLock.current) return
+    inventoryUpdateLock.current = true
 
     try {
-      const response = await protectedWrite(
-        `/warehouses/${warehouse.id}/inventory`,
-        'PUT',
-        {
-          food: values[0],
-          water: values[1],
-          medicine: values[2]
-        }
+      const food = window.prompt(
+        'Enter confirmed food stock:', warehouse.food
+      )
+      if (food === null) return
+
+      const water = window.prompt(
+        'Enter confirmed water stock:', warehouse.water
+      )
+      if (water === null) return
+
+      const medicine = window.prompt(
+        'Enter confirmed medical kits:', warehouse.medicine
+      )
+      if (medicine === null) return
+
+      await submitInventoryUpdate(
+        protectedWrite,
+        warehouse,
+        { food, water, medicine }
       )
 
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.detail || 'Stock update failed')
-
       await loadData()
-      setMessage('Inventory updated.')
+      setMessage('Inventory updated successfully.')
     } catch (error) {
-      setMessage(error.message)
+      if (error?.status === 409) {
+        await loadData()
+        setMessage(
+          'Inventory changed on the server. Review the latest ' +
+          'warehouse stock before trying again.'
+        )
+      } else {
+        const reason = error instanceof Error
+          ? error.message
+          : 'Inventory update could not be confirmed.'
+
+        setMessage(reason + ' Refresh stock before retrying.')
+      }
+    } finally {
+      inventoryUpdateLock.current = false
     }
   }
 

@@ -355,3 +355,136 @@ def test_approval_rolls_back_after_database_write(
         assert inventory.medicine == 0
 
         assert allocation.status == "PENDING"
+
+
+def inventory_update_request(food):
+    return {
+        "food": food,
+        "water": 0,
+        "medicine": 0,
+        "expected": {
+            "food": 100,
+            "water": 0,
+            "medicine": 0,
+        },
+    }
+
+
+def test_concurrent_inventory_writes_prevent_lost_update(
+    two_pending_allocations, admin_headers
+):
+    TestSession, warehouse_id, _ = two_pending_allocations
+    barrier = Barrier(2)
+
+    def update_stock(food):
+        with TestClient(main.app, headers=admin_headers) as client:
+            barrier.wait(timeout=10)
+
+            response = client.put(
+                f"/warehouses/{warehouse_id}/inventory",
+                json=inventory_update_request(food),
+            )
+
+            return response.status_code
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(update_stock, 120)
+        second = executor.submit(update_stock, 130)
+
+        statuses = [
+            first.result(timeout=30),
+            second.result(timeout=30),
+        ]
+
+    assert sorted(statuses) == [200, 409]
+
+    with TestSession() as db:
+        inventory = db.get(Inventory, warehouse_id)
+
+        assert inventory.food in (120, 130)
+        assert inventory.water == 0
+        assert inventory.medicine == 0
+
+
+def test_inventory_update_rejects_stock_after_approval(
+    two_pending_allocations, admin_headers
+):
+    TestSession, warehouse_id, allocation_ids = (
+        two_pending_allocations
+    )
+
+    with TestClient(main.app, headers=admin_headers) as client:
+        approved = client.post(
+            f"/allocation/{allocation_ids[0]}/approve"
+        )
+
+        assert approved.status_code == 200
+
+        stale_update = client.put(
+            f"/warehouses/{warehouse_id}/inventory",
+            json=inventory_update_request(120),
+        )
+
+        assert stale_update.status_code == 409
+
+    with TestSession() as db:
+        inventory = db.get(Inventory, warehouse_id)
+        allocation = db.get(Allocation, allocation_ids[0])
+
+        assert inventory.food == 20
+        assert allocation.status == "APPROVED"
+
+
+def test_concurrent_approval_and_inventory_write_preserve_stock(
+    two_pending_allocations, admin_headers
+):
+    TestSession, warehouse_id, allocation_ids = (
+        two_pending_allocations
+    )
+
+    barrier = Barrier(2)
+
+    def approve():
+        with TestClient(main.app, headers=admin_headers) as client:
+            barrier.wait(timeout=10)
+
+            response = client.post(
+                f"/allocation/{allocation_ids[0]}/approve"
+            )
+
+            return response.status_code
+
+    def update_stock():
+        with TestClient(main.app, headers=admin_headers) as client:
+            barrier.wait(timeout=10)
+
+            response = client.put(
+                f"/warehouses/{warehouse_id}/inventory",
+                json=inventory_update_request(120),
+            )
+
+            return response.status_code
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        approval_future = executor.submit(approve)
+        update_future = executor.submit(update_stock)
+
+        approval_status = approval_future.result(timeout=30)
+        update_status = update_future.result(timeout=30)
+
+    assert approval_status == 200
+    assert update_status in (200, 409)
+
+    # If stock updates first: 120 - 80 = 40.
+    # If approval happens first: 100 - 80 = 20,
+    # and the stale stock update must fail with 409.
+    expected_food = 40 if update_status == 200 else 20
+
+    with TestSession() as db:
+        inventory = db.get(Inventory, warehouse_id)
+        allocation = db.get(Allocation, allocation_ids[0])
+
+        assert inventory.food == expected_food
+        assert inventory.water == 0
+        assert inventory.medicine == 0
+        assert allocation.status == "APPROVED"
