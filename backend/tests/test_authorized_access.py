@@ -170,3 +170,125 @@ def test_authorized_preview_does_not_deduct_stock(
         assert inventory.medicine == 50
 
         assert allocation.status == "PENDING"
+
+
+def test_atomic_warehouse_registration(authorized_app):
+    TestSession, _, headers = authorized_app
+
+    with TestClient(main.app, headers=headers["admin"]) as client:
+        response = client.post(
+            "/warehouses",
+            json={
+                "name": "Atomic Registration Test",
+                "state": "Haryana",
+                "district": "Faridabad",
+                "verified_by": "Test Admin",
+                "food": 500,
+                "water": 1000,
+                "medicine": 100,
+            },
+        )
+
+    assert response.status_code == 200
+
+    warehouse_id = response.json()["warehouse_id"]
+
+    with TestSession() as db:
+        warehouse = db.get(Warehouse, warehouse_id)
+        inventory = db.get(Inventory, warehouse_id)
+
+        assert warehouse.name == "Atomic Registration Test"
+        assert inventory.food == 500
+        assert inventory.water == 1000
+        assert inventory.medicine == 100
+
+
+@pytest.mark.parametrize(
+    "invalid_stock",
+    [-1, 1.5, "10", True, 2147483648],
+)
+def test_atomic_registration_rejects_invalid_stock(
+    authorized_app,
+    invalid_stock,
+):
+    TestSession, _, headers = authorized_app
+
+    with TestSession() as db:
+        before = db.query(Warehouse).count()
+
+    with TestClient(main.app, headers=headers["admin"]) as client:
+        response = client.post(
+            "/warehouses",
+            json={
+                "name": "Invalid Atomic Stock",
+                "state": "Haryana",
+                "district": "Faridabad",
+                "verified_by": "Test Admin",
+                "food": invalid_stock,
+                "water": 100,
+                "medicine": 10,
+            },
+        )
+
+    assert response.status_code == 422
+
+    with TestSession() as db:
+        assert db.query(Warehouse).count() == before
+
+
+def test_atomic_registration_rolls_back_on_inventory_failure(
+    authorized_app,
+):
+    from sqlalchemy import event
+
+    TestSession, _, headers = authorized_app
+
+    with TestSession() as db:
+        before = db.query(Warehouse).count()
+
+    def fail_inventory_flush(session, flush_context):
+        if any(
+            isinstance(item, Inventory)
+            for item in session.new
+        ):
+            raise RuntimeError(
+                "Simulated inventory persistence failure"
+            )
+
+    event.listen(
+        TestSession.class_,
+        "after_flush",
+        fail_inventory_flush,
+    )
+
+    try:
+        with TestClient(main.app, headers=headers["admin"]) as client:
+            with pytest.raises(
+                RuntimeError,
+                match="Simulated inventory persistence failure",
+            ):
+                client.post(
+                    "/warehouses",
+                    json={
+                        "name": "Rollback Registration Test",
+                        "state": "Haryana",
+                        "district": "Faridabad",
+                        "verified_by": "Test Admin",
+                        "food": 50,
+                        "water": 100,
+                        "medicine": 5,
+                    },
+                )
+    finally:
+        event.remove(
+            TestSession.class_,
+            "after_flush",
+            fail_inventory_flush,
+        )
+
+    with TestSession() as db:
+        assert db.query(Warehouse).count() == before
+
+        assert db.query(Warehouse).filter(
+            Warehouse.name == "Rollback Registration Test"
+        ).count() == 0

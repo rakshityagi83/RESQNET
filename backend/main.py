@@ -293,6 +293,9 @@ class WarehouseInput(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     verified_by: str = Field(min_length=2)
+    food: int = Field(default=0, ge=0, le=2147483647, strict=True)
+    water: int = Field(default=0, ge=0, le=2147483647, strict=True)
+    medicine: int = Field(default=0, ge=0, le=2147483647, strict=True)
 
 
 class InventoryInput(BaseModel):
@@ -326,7 +329,12 @@ def register_warehouse(item: WarehouseInput):
 
         warehouse_id = warehouse.id
 
-        inventory = Inventory(warehouse_id=warehouse_id)
+        inventory = Inventory(
+            warehouse_id=warehouse_id,
+            food=item.food,
+            water=item.water,
+            medicine=item.medicine,
+        )
         session.add(inventory)
 
     return {

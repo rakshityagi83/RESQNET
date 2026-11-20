@@ -5,6 +5,7 @@ import AuthControls from './auth/AuthControls.jsx'
 import PendingAllocationQueue from './components/PendingAllocationQueue.jsx'
 import { useAuth } from './auth/AuthContext.jsx'
 import { authClient, AuthApiError } from './services/authClient.js'
+import { submitWarehouseRegistration } from './utils/warehouseRegistration.js'
 import {
   Activity, AlertTriangle, ArrowUpRight, BrainCircuit,
   CheckCircle2, Clock, Droplets, HeartPulse, Package,
@@ -118,6 +119,8 @@ const [recommendationsError, setRecommendationsError] = useState('')
   useEffect(() => {
     setAllocation(null)
   }, [user?.id, user?.role])
+
+  const warehouseRegistrationLock = useRef(false)
 
   const [warehouseForm, setWarehouseForm] = useState({
     name: '',
@@ -370,43 +373,17 @@ useEffect(() => {
       return
     }
 
-    let registeredId = null
+    // Prevent multiple simultaneous submissions.
+    if (warehouseRegistrationLock.current) return
 
-    setMessage('Registering warehouse...')
+    warehouseRegistrationLock.current = true
+    setMessage('Registering warehouse and initial stock...')
 
     try {
-      const response = await protectedWrite(
-        '/warehouses',
-        'POST',
-        {
-          name: warehouseForm.name,
-          state: warehouseForm.state,
-          district: warehouseForm.district,
-          latitude: warehouseForm.latitude === '' ? null : Number(warehouseForm.latitude),
-          longitude: warehouseForm.longitude === '' ? null : Number(warehouseForm.longitude),
-          verified_by: warehouseForm.verified_by
-        }
+      await submitWarehouseRegistration(
+        protectedWrite,
+        warehouseForm
       )
-
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.detail || 'Warehouse registration failed')
-
-      registeredId = data.warehouse_id
-
-      const inventoryResponse = await protectedWrite(
-        `/warehouses/${registeredId}/inventory`,
-        'PUT',
-        {
-          food: Number(warehouseForm.food),
-          water: Number(warehouseForm.water),
-          medicine: Number(warehouseForm.medicine)
-        }
-      )
-
-      const inventoryData = await inventoryResponse.json()
-      if (!inventoryResponse.ok) {
-        throw new Error(inventoryData.detail || 'Inventory update failed')
-      }
 
       setWarehouseForm({
         name: '', state: '', district: '',
@@ -415,16 +392,18 @@ useEffect(() => {
       })
 
       await loadData()
-      setMessage('Warehouse and inventory registered successfully.')
+      setMessage(
+        'Warehouse and initial inventory registered successfully.'
+      )
     } catch (error) {
-      if (registeredId !== null) {
-        await loadData()
-        setMessage(
-          `Warehouse ${registeredId} was registered, but initial stock could not be confirmed. Check its inventory before retrying.`
-        )
-      } else {
-        setMessage(error.message)
-      }
+      setMessage(
+        (error instanceof Error
+          ? error.message
+          : 'Unable to confirm warehouse registration.') +
+        ' Check the warehouse list before retrying.'
+      )
+    } finally {
+      warehouseRegistrationLock.current = false
     }
   }
 
