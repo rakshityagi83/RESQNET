@@ -6,6 +6,7 @@ from datetime import datetime as audit_datetime, timezone as audit_timezone
 from fastapi import Response
 from typing import Literal
 from sqlalchemy import or_, update
+from sqlalchemy.exc import IntegrityError
 from session_authorization import (
     SessionPrincipal,
     require_session_admin,
@@ -24,7 +25,7 @@ import time
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, Depends
 from browser_security import configure_browser_cors
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, UUID4, model_validator
 from google import genai
 from sqlalchemy.orm import Session
 from database import SessionLocal
@@ -314,6 +315,15 @@ class AllocationInput(BaseModel):
     food: int = Field(ge=0)
     water: int = Field(ge=0)
     medicine: int = Field(ge=0)
+    client_request_id: UUID4 | None = None
+
+    @model_validator(mode="after")
+    def require_positive_requested_quantity(self):
+        if not any((self.food, self.water, self.medicine)):
+            raise ValueError(
+                "Request at least one relief resource."
+            )
+        return self
 
 
 @app.post("/warehouses", dependencies=[Depends(require_admin_write)])
@@ -421,6 +431,67 @@ def update_inventory(warehouse_id: int, item: InventoryInput):
         "warehouse_id": warehouse_id,
         "inventory": item.model_dump(exclude={"expected"})
     }
+def _existing_allocation_for_request(
+    session, allocation_id, item, principal
+):
+    """Return a prior response or reject request-ID reuse."""
+    record = session.get(Allocation, allocation_id)
+
+    if record is None:
+        return None
+
+    try:
+        details = json.loads(record.requirements)
+
+        requested = {
+            "food": item.food,
+            "water": item.water,
+            "medicine": item.medicine,
+        }
+
+        matches = (
+            record.submitted_by == principal.user_id
+            and record.incident_id == item.incident_id
+            and record.warehouse_id == item.warehouse_id
+            and details["requested"] == requested
+            and "available" in details
+            and "incident" in details
+            and "warehouse_name" in details
+        )
+
+    except (ValueError, TypeError, KeyError):
+        matches = False
+
+    if not matches:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Client request ID is already associated "
+                "with another allocation."
+            ),
+        )
+
+    return {
+        "allocation_id": record.id,
+        "incident": details["incident"],
+        "warehouse": details["warehouse_name"],
+        "requested": details["requested"],
+        "available": details["available"],
+        "proposed_allocation": details["allocation"],
+        "shortages": details["shortages"],
+        "status": (
+            "PENDING HUMAN APPROVAL"
+            if record.status == "PENDING"
+            else record.status
+        ),
+        "note": (
+            "Existing allocation returned. "
+            "No new allocation or inventory change was made."
+        ),
+        "replayed": True,
+    }
+
+
 @app.post(
     "/allocation/preview",
     dependencies=[Depends(require_operator_write)]
@@ -429,78 +500,134 @@ def allocation_preview(
     item: AllocationInput,
     principal: SessionPrincipal = Depends(require_operator_write),
 ):
+    requested = {
+        "food": item.food,
+        "water": item.water,
+        "medicine": item.medicine,
+    }
+
+    # UUID5 is stable for this authenticated user and client request ID.
+    # A random UUID4 client request ID remains unpredictable.
+    stable_id = None
+
+    if item.client_request_id is not None:
+        stable_id = str(
+            uuid.uuid5(
+                uuid.NAMESPACE_URL,
+                (
+                    "resqnet:allocation-preview:v1:"
+                    f"{principal.user_id}:{item.client_request_id}"
+                ),
+            )
+        )
+
+        # A retry must not depend on the live GDACS feed.
+        with SessionLocal() as session:
+            existing = _existing_allocation_for_request(
+                session, stable_id, item, principal
+            )
+
+        if existing is not None:
+            return existing
+
     try:
         incidents = fetch_gdacs()
     except Exception as error:
-        raise HTTPException(status_code=502, detail=str(error))
+        raise HTTPException(
+            status_code=502,
+            detail=str(error),
+        ) from error
 
     incident = next(
         (x for x in incidents if x["id"] == item.incident_id),
-        None
+        None,
     )
 
     if not incident:
         raise HTTPException(
             status_code=404,
-            detail="Incident not found in current India GDACS feed"
+            detail="Incident not found in current India GDACS feed",
         )
 
-    requested = {
-        "food": item.food,
-        "water": item.water,
-        "medicine": item.medicine
-    }
+    allocation_id = stable_id or str(uuid.uuid4())
 
-    with SessionLocal.begin() as session:
-        warehouse = session.get(Warehouse, item.warehouse_id)
+    try:
+        with SessionLocal.begin() as session:
+            warehouse = session.get(Warehouse, item.warehouse_id)
 
-        if warehouse is None:
-            raise HTTPException(
-                status_code=404,
-                detail="Warehouse not found"
+            if warehouse is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Warehouse not found",
+                )
+
+            inventory = session.get(Inventory, item.warehouse_id)
+
+            if inventory is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Inventory not found",
+                )
+
+            available = {
+                "food": inventory.food,
+                "water": inventory.water,
+                "medicine": inventory.medicine,
+            }
+
+            allocation = {
+                key: min(requested[key], available[key])
+                for key in requested
+            }
+
+            if not any(allocation.values()):
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "Warehouse has no available stock for "
+                        "the requested resources."
+                    ),
+                )
+
+            shortages = {
+                key: requested[key] - allocation[key]
+                for key in requested
+            }
+
+            warehouse_name = warehouse.name
+
+            record = Allocation(
+                id=allocation_id,
+                incident_id=item.incident_id,
+                warehouse_id=item.warehouse_id,
+                requirements=json.dumps({
+                    "requested": requested,
+                    "allocation": allocation,
+                    "shortages": shortages,
+                    "available": available,
+                    "incident": incident,
+                    "warehouse_name": warehouse_name,
+                }),
+                status="PENDING",
+                submitted_by=principal.user_id,
             )
 
-        inventory = session.get(Inventory, item.warehouse_id)
+            session.add(record)
 
-        if inventory is None:
-            raise HTTPException(
-                status_code=404,
-                detail="Inventory not found"
-            )
+    except IntegrityError:
+        # Another concurrent request may have committed the
+        # same deterministic allocation ID first.
+        if stable_id is not None:
+            with SessionLocal() as session:
+                existing = _existing_allocation_for_request(
+                    session, stable_id, item, principal
+                )
 
-        available = {
-            "food": inventory.food,
-            "water": inventory.water,
-            "medicine": inventory.medicine
-        }
+            if existing is not None:
+                return existing
 
-        allocation = {
-            key: min(requested[key], available[key])
-            for key in requested
-        }
-
-        shortages = {
-            key: requested[key] - allocation[key]
-            for key in requested
-        }
-
-        allocation_id = str(uuid.uuid4())
-        warehouse_name = warehouse.name
-
-        record = Allocation(
-            id=allocation_id,
-            incident_id=item.incident_id,
-            warehouse_id=item.warehouse_id,
-            requirements=json.dumps({
-                "requested": requested,
-                "allocation": allocation,
-                "shortages": shortages
-            }),
-            status="PENDING",
-            submitted_by=principal.user_id
-        )
-
-        session.add(record)
+        # Never hide unrelated database-integrity errors.
+        raise
 
     return {
         "allocation_id": allocation_id,
@@ -511,7 +638,10 @@ def allocation_preview(
         "proposed_allocation": allocation,
         "shortages": shortages,
         "status": "PENDING HUMAN APPROVAL",
-        "note": "Preview only. Inventory has not been deducted."
+        "note": (
+            "Preview only. Inventory has not been deducted."
+        ),
+        "replayed": False,
     }
 
 
@@ -545,6 +675,15 @@ def approve_allocation(
 
         details = json.loads(record.requirements)
         allocation = details["allocation"]
+
+        if not any(
+            allocation.get(key, 0)
+            for key in ("food", "water", "medicine")
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="Cannot approve an empty allocation.",
+            )
 
         inventory = (
             session.query(Inventory)

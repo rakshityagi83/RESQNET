@@ -8,6 +8,10 @@ import { authClient, AuthApiError } from './services/authClient.js'
 import { submitWarehouseRegistration } from './utils/warehouseRegistration.js'
 import { submitInventoryUpdate } from './utils/inventoryUpdate.js'
 import {
+  prepareAllocationPreviewRequest,
+  submitAllocationPreview
+} from './utils/allocationPreview.js'
+import {
   Activity, AlertTriangle, ArrowUpRight, BrainCircuit,
   CheckCircle2, Clock, Droplets, HeartPulse, Package,
   Radio, Shield, Users, Warehouse, RefreshCw, Truck
@@ -25,12 +29,13 @@ const API = localAuthEnabled
 const inputClass =
   'w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500'
 
-const Field = ({ label, value, onChange, type = 'text', required = true }) => (
+const Field = ({ label, value, onChange, type = 'text', required = true, disabled = false }) => (
   <label className="block">
     <span className="mb-2 block text-xs text-slate-400">{label}</span>
     <input
       className={inputClass}
       type={type}
+      disabled={disabled}
       min={type === 'number' ? 0 : undefined}
       required={required}
       value={value}
@@ -117,8 +122,12 @@ const [recommendationsError, setRecommendationsError] = useState('')
   const [allocation, setAllocation] = useState(null)
   const [allocating, setAllocating] = useState(false)
 
+  const allocationPreviewLock = useRef(false)
+  const allocationRequestRef = useRef(null)
+
   useEffect(() => {
     setAllocation(null)
+    allocationRequestRef.current = null
   }, [user?.id, user?.role])
 
   const warehouseRegistrationLock = useRef(false)
@@ -363,6 +372,8 @@ useEffect(() => {
   }
 
   const updateAllocationForm = (key, value) => {
+    if (allocationPreviewLock.current) return
+
     setAllocationForm(previous => ({ ...previous, [key]: value }))
     setAllocation(null)
   }
@@ -642,47 +653,76 @@ useEffect(() => {
   const previewAllocation = async (event) => {
     event.preventDefault()
 
-    if (!canOperatorWrite) {
+    if (!canOperatorWrite || !user?.id) {
       setMessage('Personnel authentication required.')
       return
     }
+
+    if (allocationPreviewLock.current) return
+    allocationPreviewLock.current = true
 
     setAllocating(true)
     setAllocation(null)
     setMessage('Calculating allocation preview...')
 
     try {
-      const response = await protectedWrite(
-        '/allocation/preview',
-        'POST',
-        {
-          incident_id: allocationForm.incident_id,
-          warehouse_id: Number(allocationForm.warehouse_id),
-          food: Number(allocationForm.food),
-          water: Number(allocationForm.water),
-          medicine: Number(allocationForm.medicine)
-        }
+      const prepared = prepareAllocationPreviewRequest(
+        allocationRequestRef.current,
+        allocationForm,
+        user.id
       )
 
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.detail || 'Allocation preview failed')
+      // Save before the request, including when the network fails.
+      allocationRequestRef.current = prepared.request
 
-      setAllocation(data)
-      setMessage('Allocation preview generated. No inventory has been deducted.')
+      const data = await submitAllocationPreview(
+        protectedWrite,
+        prepared.payload
+      )
+
+      if (data.status === 'PENDING HUMAN APPROVAL') {
+        setAllocation(data)
+        setMessage(
+          data.replayed
+            ? 'Existing allocation preview restored. No duplicate created.'
+            : 'Allocation preview generated. No inventory has been deducted.'
+        )
+      } else {
+        setAllocation(null)
+        setMessage(
+          `This allocation is already ${data.status.toLowerCase()}. ` +
+          'Edit the form to start a different request.'
+        )
+      }
     } catch (error) {
-      setMessage(error.message)
+      setMessage(
+        (error instanceof Error
+          ? error.message
+          : 'Allocation preview result uncertain.') +
+        ' Retry with the same form values to reuse the request ID.'
+      )
     } finally {
+      allocationPreviewLock.current = false
       setAllocating(false)
     }
   }
 
-  const approveAllocation = async () => {
+    const approveAllocation = async () => {
     if (!canAdminWrite) {
       setMessage('Administrator approval required.')
       return
     }
 
     if (!allocation?.allocation_id) return
+
+    if (!['food', 'water', 'medicine'].some(
+      key => Number.isSafeInteger(
+        allocation.proposed_allocation?.[key]
+      ) && allocation.proposed_allocation[key] > 0
+    )) {
+      setMessage('Cannot approve an empty allocation.')
+      return
+    }
 
     if (!window.confirm('Approve this allocation and deduct the displayed stock?')) {
       return
@@ -704,6 +744,21 @@ useEffect(() => {
       setMessage(error.message)
     }
   }
+
+  const allocationFormEmpty = ['food', 'water', 'medicine'].every(
+    key => Number(allocationForm[key]) === 0
+  )
+
+  const allocationHasResources = Boolean(
+    allocation?.proposed_allocation &&
+    ['food', 'water', 'medicine'].some(
+      key =>
+        Number.isSafeInteger(
+          allocation.proposed_allocation[key]
+        ) &&
+        allocation.proposed_allocation[key] > 0
+    )
+  )
 
   const cardClass =
     'rounded-2xl border border-slate-800 bg-[#101a2b] p-5'
@@ -1647,10 +1702,16 @@ incidents={
                   </p>
                 )}
 
+                {allocationFormEmpty && (
+                  <p role="status" className="mb-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-sm text-amber-300">
+                    Request at least one relief resource to generate an allocation preview.
+                  </p>
+                )}
+
                 <form onSubmit={previewAllocation} className="grid gap-4 md:grid-cols-2">
                   <label>
                     <span className="mb-2 block text-xs text-slate-400">Live India incident</span>
-                    <select required className={inputClass}
+                    <select required disabled={allocating} className={inputClass}
                       value={allocationForm.incident_id}
                       onChange={e => updateAllocationForm('incident_id', e.target.value)}>
                       <option value="">Select incident</option>
@@ -1664,7 +1725,7 @@ incidents={
 
                   <label>
                     <span className="mb-2 block text-xs text-slate-400">Warehouse</span>
-                    <select required className={inputClass}
+                    <select required disabled={allocating} className={inputClass}
                       value={allocationForm.warehouse_id}
                       onChange={e => updateAllocationForm('warehouse_id', e.target.value)}>
                       <option value="">Select warehouse</option>
@@ -1677,14 +1738,14 @@ incidents={
                   </label>
 
                   <Field label="Requested food packages" type="number" value={allocationForm.food}
-                    onChange={v => updateAllocationForm('food', v)} />
+                    onChange={v => updateAllocationForm('food', v)} disabled={allocating} />
                   <Field label="Requested water (litres)" type="number" value={allocationForm.water}
-                    onChange={v => updateAllocationForm('water', v)} />
+                    onChange={v => updateAllocationForm('water', v)} disabled={allocating} />
                   <Field label="Requested medical kits" type="number" value={allocationForm.medicine}
-                    onChange={v => updateAllocationForm('medicine', v)} />
+                    onChange={v => updateAllocationForm('medicine', v)} disabled={allocating} />
 
                   <div className="flex items-end">
-                    <button disabled={!canOperatorWrite || allocating || allIncidents.length === 0 || warehouses.length === 0}
+                    <button disabled={!canOperatorWrite || allocating || allocationFormEmpty || allIncidents.length === 0 || warehouses.length === 0}
                       className="w-full rounded-lg bg-cyan-600 px-4 py-3 text-sm font-semibold disabled:opacity-40">
                       {allocating ? 'Calculating...' : 'Generate Allocation Preview'}
                     </button>
@@ -1702,13 +1763,27 @@ incidents={
                       </p>
                     </div>
                     <span className="h-fit rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
-                      Pending approval
+                      {allocationHasResources
+                        ? 'Pending approval'
+                        : 'Empty allocation ? approval blocked'}
                     </span>
                   </div>
 
                   <p className="mb-4 text-xs text-slate-400">
                     Requested quantities are operator-supplied, not automatically verified disaster requirements.
                   </p>
+
+                  {allocation.replayed && (
+                    <p role="status" className="mb-4 rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3 text-sm text-cyan-300">
+                      Existing allocation restored. No duplicate pending request was created.
+                    </p>
+                  )}
+
+                  {!allocationHasResources && (
+                    <p role="alert" className="mb-4 rounded-lg border border-rose-500/20 bg-rose-500/5 p-3 text-sm text-rose-300">
+                      No resources can be allocated. Approval is disabled.
+                    </p>
+                  )}
 
                   <div className="grid gap-3 sm:grid-cols-3">
                     {[
@@ -1737,11 +1812,13 @@ incidents={
                   </div>
 
                   <button onClick={approveAllocation}
-                    disabled={!canAdminWrite}
+                    disabled={!canAdminWrite || !allocationHasResources}
                     className="mt-4 w-full rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40">
-                    {isAdmin
-                      ? 'Approve Allocation & Deduct Stock'
-                      : 'Administrator Approval Required'}
+                    {!allocationHasResources
+                      ? 'Cannot Approve Empty Allocation'
+                      : isAdmin
+                        ? 'Approve Allocation & Deduct Stock'
+                        : 'Administrator Approval Required'}
                   </button>
                 </section>
               )}

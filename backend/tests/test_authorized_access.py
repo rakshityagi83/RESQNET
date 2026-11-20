@@ -390,3 +390,175 @@ def test_inventory_update_rejects_invalid_snapshot(
             inventory.water,
             inventory.medicine,
         ) == (100, 200, 50)
+
+
+def test_allocation_retry_returns_same_record(authorized_app):
+    from uuid import uuid4
+
+    TestSession, warehouse_id, headers = authorized_app
+
+    payload = {
+        "client_request_id": str(uuid4()),
+        "incident_id": "TEST-INCIDENT",
+        "warehouse_id": warehouse_id,
+        "food": 40,
+        "water": 60,
+        "medicine": 10,
+    }
+
+    with TestClient(main.app, headers=headers["operator"]) as client:
+        first = client.post("/allocation/preview", json=payload)
+        retry = client.post("/allocation/preview", json=payload)
+
+    assert first.status_code == 200
+    assert retry.status_code == 200
+
+    assert (
+        first.json()["allocation_id"]
+        == retry.json()["allocation_id"]
+    )
+
+    with TestSession() as db:
+        records = db.query(Allocation).filter(
+            Allocation.incident_id == "TEST-INCIDENT"
+        ).all()
+
+        assert len(records) == 1
+        assert records[0].status == "PENDING"
+
+
+def test_allocation_request_id_rejects_changed_payload(
+    authorized_app,
+):
+    from uuid import uuid4
+
+    TestSession, warehouse_id, headers = authorized_app
+
+    payload = {
+        "client_request_id": str(uuid4()),
+        "incident_id": "TEST-INCIDENT",
+        "warehouse_id": warehouse_id,
+        "food": 40,
+        "water": 60,
+        "medicine": 10,
+    }
+
+    with TestClient(main.app, headers=headers["operator"]) as client:
+        first = client.post("/allocation/preview", json=payload)
+
+        changed = client.post(
+            "/allocation/preview",
+            json={**payload, "food": 80},
+        )
+
+    assert first.status_code == 200
+    assert changed.status_code == 409
+
+    with TestSession() as db:
+        records = db.query(Allocation).filter(
+            Allocation.incident_id == "TEST-INCIDENT"
+        ).all()
+
+        assert len(records) == 1
+
+
+def test_zero_resource_preview_is_rejected(authorized_app):
+    TestSession, warehouse_id, headers = authorized_app
+
+    with TestClient(main.app, headers=headers["operator"]) as client:
+        response = client.post(
+            "/allocation/preview",
+            json={
+                "incident_id": "TEST-INCIDENT",
+                "warehouse_id": warehouse_id,
+                "food": 0,
+                "water": 0,
+                "medicine": 0,
+            },
+        )
+
+    assert response.status_code == 422
+
+    with TestSession() as db:
+        assert db.query(Allocation).count() == 0
+
+
+def test_unavailable_resources_do_not_create_pending_allocation(
+    authorized_app,
+):
+    TestSession, warehouse_id, headers = authorized_app
+
+    with TestSession.begin() as db:
+        inventory = db.get(Inventory, warehouse_id)
+        inventory.food = 0
+        inventory.water = 0
+        inventory.medicine = 0
+
+    with TestClient(main.app, headers=headers["operator"]) as client:
+        response = client.post(
+            "/allocation/preview",
+            json={
+                "incident_id": "TEST-INCIDENT",
+                "warehouse_id": warehouse_id,
+                "food": 10,
+                "water": 20,
+                "medicine": 5,
+            },
+        )
+
+    assert response.status_code == 409
+
+    with TestSession() as db:
+        assert db.query(Allocation).count() == 0
+
+
+def test_legacy_empty_allocation_cannot_be_approved(
+    authorized_app,
+):
+    import json
+
+    TestSession, warehouse_id, headers = authorized_app
+    allocation_id = "test-legacy-empty-allocation"
+
+    with TestSession.begin() as db:
+        db.add(Allocation(
+            id=allocation_id,
+            incident_id="TEST-INCIDENT",
+            warehouse_id=warehouse_id,
+            requirements=json.dumps({
+                "requested": {
+                    "food": 0,
+                    "water": 0,
+                    "medicine": 0,
+                },
+                "allocation": {
+                    "food": 0,
+                    "water": 0,
+                    "medicine": 0,
+                },
+                "shortages": {
+                    "food": 0,
+                    "water": 0,
+                    "medicine": 0,
+                },
+            }),
+            status="PENDING",
+        ))
+
+    with TestClient(main.app, headers=headers["admin"]) as client:
+        response = client.post(
+            f"/allocation/{allocation_id}/approve"
+        )
+
+    assert response.status_code == 409
+
+    with TestSession() as db:
+        allocation = db.get(Allocation, allocation_id)
+        inventory = db.get(Inventory, warehouse_id)
+
+        assert allocation.status == "PENDING"
+        assert (
+            inventory.food,
+            inventory.water,
+            inventory.medicine,
+        ) == (100, 200, 50)

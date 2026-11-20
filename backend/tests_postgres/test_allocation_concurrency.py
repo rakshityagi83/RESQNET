@@ -488,3 +488,189 @@ def test_concurrent_approval_and_inventory_write_preserve_stock(
         assert inventory.water == 0
         assert inventory.medicine == 0
         assert allocation.status == "APPROVED"
+
+
+@pytest.fixture
+def idempotency_case(two_pending_allocations, monkeypatch):
+    TestSession, warehouse_id, _ = two_pending_allocations
+
+    incident_id = "TEST-IDEMPOTENCY-" + uuid.uuid4().hex
+
+    monkeypatch.setattr(
+        main,
+        "fetch_gdacs",
+        lambda: [{
+            "id": incident_id,
+            "location": "Synthetic Test Incident",
+            "severity": "Orange",
+        }],
+    )
+
+    try:
+        yield TestSession, warehouse_id, incident_id
+
+    finally:
+        # Remove only records created for this synthetic incident.
+        # The existing fixture cleans up its own warehouse.
+        with TestSession.begin() as db:
+            db.query(Allocation).filter(
+                Allocation.warehouse_id == warehouse_id,
+                Allocation.incident_id == incident_id,
+            ).delete(synchronize_session=False)
+
+
+def idempotent_preview_payload(warehouse_id, incident_id):
+    return {
+        "client_request_id": str(uuid.uuid4()),
+        "incident_id": incident_id,
+        "warehouse_id": warehouse_id,
+        "food": 40,
+        "water": 0,
+        "medicine": 0,
+    }
+
+
+def test_concurrent_idempotent_preview_creates_one_record(
+    idempotency_case, admin_headers
+):
+    TestSession, warehouse_id, incident_id = idempotency_case
+
+    payload = idempotent_preview_payload(
+        warehouse_id, incident_id
+    )
+
+    barrier = Barrier(2)
+
+    def submit():
+        with TestClient(main.app, headers=admin_headers) as client:
+            barrier.wait(timeout=10)
+
+            response = client.post(
+                "/allocation/preview",
+                json=payload,
+            )
+
+            return response.status_code, response.json()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(submit)
+        second = executor.submit(submit)
+
+        responses = [
+            first.result(timeout=30),
+            second.result(timeout=30),
+        ]
+
+    assert [status for status, _ in responses] == [200, 200]
+
+    first_result = responses[0][1]
+    second_result = responses[1][1]
+
+    assert (
+        first_result["allocation_id"]
+        == second_result["allocation_id"]
+    )
+
+    assert sorted(
+        result["replayed"]
+        for _, result in responses
+    ) == [False, True]
+
+    with TestSession() as db:
+        records = db.query(Allocation).filter(
+            Allocation.warehouse_id == warehouse_id,
+            Allocation.incident_id == incident_id,
+        ).all()
+
+        inventory = db.get(Inventory, warehouse_id)
+
+        assert len(records) == 1
+        assert records[0].status == "PENDING"
+
+        # Creating previews must not deduct stock.
+        assert inventory.food == 100
+
+
+def test_idempotent_preview_conflicting_payload_returns_409_postgres(
+    idempotency_case, admin_headers
+):
+    TestSession, warehouse_id, incident_id = idempotency_case
+
+    payload = idempotent_preview_payload(
+        warehouse_id, incident_id
+    )
+
+    with TestClient(main.app, headers=admin_headers) as client:
+        first = client.post(
+            "/allocation/preview",
+            json=payload,
+        )
+
+        changed = client.post(
+            "/allocation/preview",
+            json={**payload, "food": 70},
+        )
+
+    assert first.status_code == 200
+    assert changed.status_code == 409
+
+    with TestSession() as db:
+        records = db.query(Allocation).filter(
+            Allocation.warehouse_id == warehouse_id,
+            Allocation.incident_id == incident_id,
+        ).all()
+
+        inventory = db.get(Inventory, warehouse_id)
+
+        assert len(records) == 1
+        assert inventory.food == 100
+
+
+def test_approved_allocation_retry_returns_approved_status_postgres(
+    idempotency_case, admin_headers
+):
+    TestSession, warehouse_id, incident_id = idempotency_case
+
+    payload = idempotent_preview_payload(
+        warehouse_id, incident_id
+    )
+
+    with TestClient(main.app, headers=admin_headers) as client:
+        preview = client.post(
+            "/allocation/preview",
+            json=payload,
+        )
+
+        assert preview.status_code == 200
+
+        allocation_id = preview.json()["allocation_id"]
+
+        approved = client.post(
+            f"/allocation/{allocation_id}/approve"
+        )
+
+        assert approved.status_code == 200
+
+        replay = client.post(
+            "/allocation/preview",
+            json=payload,
+        )
+
+    assert replay.status_code == 200
+    assert replay.json()["allocation_id"] == allocation_id
+    assert replay.json()["status"] == "APPROVED"
+    assert replay.json()["replayed"] is True
+
+    with TestSession() as db:
+        records = db.query(Allocation).filter(
+            Allocation.warehouse_id == warehouse_id,
+            Allocation.incident_id == incident_id,
+        ).all()
+
+        inventory = db.get(Inventory, warehouse_id)
+
+        assert len(records) == 1
+        assert records[0].status == "APPROVED"
+
+        # Approval deducted 40 once, not twice.
+        assert inventory.food == 60
