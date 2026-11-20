@@ -12,18 +12,32 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
 import main
-from models import Warehouse, Inventory, Allocation
+from models import (
+    Warehouse, Inventory, Allocation, User, UserSession,
+)
 
 
 @pytest.fixture
-def admin_headers(monkeypatch):
-    # Disposable test credentials, never production secrets.
-    monkeypatch.setenv("RESQNET_ADMIN_TOKEN", "a" * 48)
-    monkeypatch.setenv("RESQNET_OPERATOR_TOKEN", "b" * 48)
+def admin_headers(postgres_session, session_test_headers):
+    TestSession = postgres_session
 
-    return {
-        "Authorization": "Bearer " + "a" * 48
-    }
+    headers, user_id = session_test_headers(
+        TestSession, "admin"
+    )
+
+    try:
+        yield headers
+
+    finally:
+        with TestSession.begin() as db:
+            db.query(UserSession).filter(
+                UserSession.user_id == user_id
+            ).delete(synchronize_session=False)
+
+            db.query(User).filter(
+                User.id == user_id
+            ).delete(synchronize_session=False)
+
 
 @pytest.fixture
 def postgres_session(monkeypatch):
@@ -65,6 +79,23 @@ def postgres_session(monkeypatch):
             pytest.fail("Database identity mismatch.")
 
 
+        with engine.connect() as connection:
+            revision = connection.execute(
+                text("SELECT version_num FROM alembic_version")
+            ).scalar_one()
+
+            if revision != "8f27c4b19d62":
+                pytest.fail("Unexpected test schema revision")
+
+            for table in ("users", "user_sessions"):
+                exists = connection.execute(
+                    text("SELECT to_regclass(:table)"),
+                    {"table": table},
+                ).scalar_one()
+
+                if exists is None:
+                    pytest.fail("Required test table missing")
+
         TestSession = sessionmaker(
             bind=engine,
             autoflush=False
@@ -80,7 +111,10 @@ def postgres_session(monkeypatch):
 
 
 @pytest.fixture
-def two_pending_allocations(postgres_session):
+def two_pending_allocations(
+    postgres_session,
+    admin_headers,
+):
     TestSession = postgres_session
 
     allocation_ids = [

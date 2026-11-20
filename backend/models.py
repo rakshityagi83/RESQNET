@@ -65,6 +65,38 @@ class Allocation(Base):
         server_default=func.current_timestamp(),
     )
 
+    # Nullable for allocations created before audit tracking.
+    submitted_by = Column(
+        Integer,
+        ForeignKey(
+            "users.id",
+            name="fk_allocations_submitted_by_users",
+            ondelete="RESTRICT",
+        ),
+        nullable=True,
+    )
+
+    decided_by = Column(
+        Integer,
+        ForeignKey(
+            "users.id",
+            name="fk_allocations_decided_by_users",
+            ondelete="RESTRICT",
+        ),
+        nullable=True,
+    )
+
+    decided_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    rejection_reason = Column(
+        String(500),
+        nullable=True,
+    )
+
+
 class User(Base):
     __tablename__ = "users"
 

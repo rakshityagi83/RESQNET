@@ -635,3 +635,491 @@ def test_logout_clears_invalid_session_cookie(isolated_auth):
 
     assert response.status_code == 204
     assert "max-age=0" in response.headers["set-cookie"].lower()
+
+
+@pytest.fixture
+def session_profile_app(isolated_auth, monkeypatch):
+    import session_authorization
+
+    app, TestSession = isolated_auth
+
+    monkeypatch.setattr(
+        session_authorization,
+        "SessionLocal",
+        TestSession,
+    )
+
+    return app, TestSession
+
+
+def test_session_profile_restores_authentication(
+    session_profile_app,
+):
+    app, TestSession = session_profile_app
+
+    with TestClient(app) as client:
+        authenticated = login(client)
+
+        assert authenticated.status_code == 200
+
+        token = authenticated.cookies.get("resqnet_session")
+        assert token
+
+        response = client.post(
+            "/auth/session",
+            headers={"Origin": VALID_ORIGIN},
+        )
+
+    assert response.status_code == 200
+
+    assert response.json()["user"] == (
+        authenticated.json()["user"]
+    )
+
+    assert response.json()["csrf_token"] == (
+        authenticated.json()["csrf_token"]
+    )
+
+    assert response.headers["Cache-Control"] == "no-store"
+    assert "set-cookie" not in response.headers
+    assert token not in response.text
+    assert "password_hash" not in response.text
+
+    # Recovering authentication must not create another session.
+    with TestSession() as db:
+        records = db.scalars(select(UserSession)).all()
+        assert len(records) == 1
+
+
+@pytest.mark.parametrize(
+    "token",
+    [None, "invalid-token", generate_session_token()],
+)
+def test_session_profile_rejects_invalid_sessions(
+    session_profile_app, token
+):
+    app, _ = session_profile_app
+
+    with TestClient(app) as client:
+        if token is not None:
+            client.cookies.set("resqnet_session", token)
+
+        response = client.post(
+            "/auth/session",
+            headers={"Origin": VALID_ORIGIN},
+        )
+
+    assert response.status_code == 401
+    assert "csrf_token" not in response.json()
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [None, "https://untrusted.example"],
+)
+def test_session_profile_rejects_untrusted_origins(
+    session_profile_app, origin
+):
+    app, _ = session_profile_app
+
+    with TestClient(app) as client:
+        authenticated = login(client)
+
+        assert authenticated.status_code == 200
+
+        headers = {}
+
+        if origin is not None:
+            headers["Origin"] = origin
+
+        response = client.post(
+            "/auth/session",
+            headers=headers,
+        )
+
+    assert response.status_code == 403
+    assert "csrf_token" not in response.json()
+
+
+@pytest.mark.parametrize(
+    "condition",
+    ["expired", "revoked", "disabled", "invalid_role"],
+)
+def test_session_profile_rejects_unusable_accounts(
+    session_profile_app, condition
+):
+    from datetime import datetime, timedelta, timezone
+
+    app, TestSession = session_profile_app
+
+    with TestClient(app) as client:
+        authenticated = login(client)
+
+        assert authenticated.status_code == 200
+
+        token = authenticated.cookies.get("resqnet_session")
+
+        with TestSession.begin() as db:
+            record = db.scalar(
+                select(UserSession).where(
+                    UserSession.token_hash
+                    == hash_session_token(token)
+                )
+            )
+
+            user = db.get(User, record.user_id)
+
+            if condition == "expired":
+                record.expires_at = (
+                    datetime.now(timezone.utc)
+                    - timedelta(seconds=1)
+                )
+
+            elif condition == "revoked":
+                record.revoked_at = datetime.now(timezone.utc)
+
+            elif condition == "disabled":
+                user.is_active = False
+
+            elif condition == "invalid_role":
+                user.role = "unknown"
+
+        response = client.post(
+            "/auth/session",
+            headers={"Origin": VALID_ORIGIN},
+        )
+
+    expected = 403 if condition == "invalid_role" else 401
+
+    assert response.status_code == expected
+    assert "csrf_token" not in response.json()
+
+
+def test_session_profile_returns_current_account_role(
+    session_profile_app,
+):
+    app, TestSession = session_profile_app
+
+    with TestClient(app) as client:
+        authenticated = login(client)
+
+        assert authenticated.status_code == 200
+        assert authenticated.json()["user"]["role"] == "operator"
+
+        user_id = authenticated.json()["user"]["id"]
+
+        with TestSession.begin() as db:
+            db.get(User, user_id).role = "admin"
+
+        response = client.post(
+            "/auth/session",
+            headers={"Origin": VALID_ORIGIN},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["user"]["role"] == "admin"
+
+
+def test_session_profile_missing_csrf_secret_fails_closed(
+    session_profile_app, monkeypatch
+):
+    app, _ = session_profile_app
+
+    with TestClient(
+        app,
+        raise_server_exceptions=False,
+    ) as client:
+        authenticated = login(client)
+
+        assert authenticated.status_code == 200
+
+        monkeypatch.delenv(
+            "RESQNET_CSRF_HMAC_KEY",
+            raising=False,
+        )
+
+        response = client.post(
+            "/auth/session",
+            headers={"Origin": VALID_ORIGIN},
+        )
+
+    assert response.status_code == 500
+    assert "csrf_token" not in response.text
+
+
+@pytest.mark.parametrize(
+    "username",
+    [
+        "   ",
+        "\t\n ",
+        "a b",
+        "1operator",
+        "a" * 33,
+        "\u0130" * 80,
+        "a\x00b",
+    ],
+    ids=[
+        "whitespace",
+        "control-whitespace",
+        "embedded-space",
+        "invalid-prefix",
+        "too-long",
+        "unicode-expansion",
+        "null-character",
+    ],
+)
+def test_malformed_login_username_rejected(
+    isolated_auth, monkeypatch, username
+):
+    app, TestSession = isolated_auth
+
+    class ForbiddenDatabase:
+        def begin(self):
+            raise AssertionError(
+                "Malformed login reached database"
+            )
+
+    monkeypatch.setattr(
+        auth_api,
+        "SessionLocal",
+        ForbiddenDatabase(),
+    )
+
+    with TestClient(app) as client:
+        response = login(
+            client,
+            {
+                "username": username,
+                "password": VALID_CREDENTIALS["password"],
+            },
+        )
+
+    assert response.status_code == 422
+    assert "set-cookie" not in response.headers
+    assert "csrf_token" not in response.json()
+
+    with TestSession() as db:
+        assert db.scalars(select(UserSession)).all() == []
+
+
+@pytest.mark.parametrize(
+    "username",
+    [
+        "TESTOPERATOR",
+        "  TestOperator  ",
+    ],
+    ids=["uppercase", "surrounding-whitespace"],
+)
+def test_login_normalizes_username_before_rate_limiting(
+    isolated_auth, monkeypatch, username
+):
+    app, TestSession = isolated_auth
+
+    observed_usernames = []
+
+    def capture_identity(db, username, client_ip):
+        observed_usernames.append(username)
+
+    monkeypatch.setattr(
+        auth_api,
+        "acquire_login_attempt_locks",
+        capture_identity,
+    )
+
+    with TestClient(app) as client:
+        response = login(
+            client,
+            {
+                "username": username,
+                "password": VALID_CREDENTIALS["password"],
+            },
+        )
+
+    assert response.status_code == 200
+
+    assert response.json()["user"]["username"] == (
+        "testoperator"
+    )
+
+    assert observed_usernames == ["testoperator"]
+
+    with TestSession() as db:
+        assert len(db.scalars(select(UserSession)).all()) == 1
+
+
+@pytest.mark.parametrize(
+    "condition",
+    [
+        "unknown_user",
+        "wrong_password",
+        "disabled_account",
+        "invalid_role",
+    ],
+)
+def test_login_failure_response_does_not_reveal_account_state(
+    isolated_auth, condition
+):
+    app, TestSession = isolated_auth
+
+    credentials = dict(VALID_CREDENTIALS)
+
+    if condition == "unknown_user":
+        credentials["username"] = "unknownoperator"
+
+    elif condition == "wrong_password":
+        credentials["password"] = "incorrect-password"
+
+    else:
+        with TestSession.begin() as db:
+            user = db.scalar(
+                select(User).where(
+                    User.username == credentials["username"]
+                )
+            )
+
+            assert user is not None
+
+            if condition == "disabled_account":
+                user.is_active = False
+
+            elif condition == "invalid_role":
+                user.role = "unknown"
+
+    with TestClient(app) as client:
+        response = login(client, credentials)
+
+    assert response.status_code == 401
+
+    assert response.json() == {
+        "detail": "Invalid username or password",
+    }
+
+    assert "set-cookie" not in response.headers
+    assert "csrf_token" not in response.json()
+
+    with TestSession() as db:
+        assert db.scalars(select(UserSession)).all() == []
+
+
+@pytest.mark.parametrize(
+    "condition",
+    [
+        "missing_username",
+        "invalid_username",
+        "oversized_password",
+        "invalid_password_type",
+        "missing_password",
+        "invalid_body",
+        "malformed_json",
+        "invalid_password_encoding",
+    ],
+)
+def test_auth_validation_errors_never_expose_credentials(
+    isolated_auth, monkeypatch, condition
+):
+    import json
+
+    app, TestSession = isolated_auth
+
+    marker = "sensitive-test-marker-123"
+
+    payload = {
+        "username": "testoperator",
+        "password": marker,
+    }
+
+    if condition == "missing_username":
+        payload.pop("username")
+
+    elif condition == "invalid_username":
+        payload["username"] = "invalid " + marker
+
+    elif condition == "oversized_password":
+        payload["password"] = marker * 10
+
+    elif condition == "invalid_password_type":
+        payload["password"] = {
+            "secret": marker,
+        }
+
+    elif condition == "missing_password":
+        payload.pop("password")
+        payload["unexpected"] = marker
+
+    elif condition == "invalid_body":
+        payload = [marker]
+
+    elif condition == "invalid_password_encoding":
+        payload["password"] = marker + chr(0xD800)
+
+    body = json.dumps(payload)
+
+    if condition == "malformed_json":
+        body = body[:-1]
+
+    class ForbiddenDatabase:
+        def begin(self):
+            raise AssertionError(
+                "Invalid authentication reached database"
+            )
+
+    monkeypatch.setattr(
+        auth_api,
+        "SessionLocal",
+        ForbiddenDatabase(),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/auth/login",
+            headers={
+                "Origin": VALID_ORIGIN,
+                "Content-Type": "application/json",
+            },
+            content=body,
+        )
+
+    assert response.status_code == 422
+
+    assert response.json() == {
+        "detail": "Invalid authentication request",
+    }
+
+    assert response.headers["Cache-Control"] == "no-store"
+    assert marker not in response.text
+    assert "input" not in response.json()
+    assert "set-cookie" not in response.headers
+    assert "csrf_token" not in response.json()
+
+    with TestSession() as db:
+        assert db.scalars(select(UserSession)).all() == []
+
+
+def test_auth_validation_sanitization_is_route_specific(
+    isolated_auth,
+):
+    from pydantic import BaseModel
+
+    app, _ = isolated_auth
+
+    class PublicInput(BaseModel):
+        quantity: int
+
+    @app.post("/test/public-validation")
+    def public_validation(item: PublicInput):
+        return item.model_dump()
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/test/public-validation",
+            json={"quantity": "not-an-integer"},
+        )
+
+    assert response.status_code == 422
+
+    detail = response.json()["detail"]
+
+    # Normal FastAPI validation remains available
+    # outside the authentication router.
+    assert isinstance(detail, list)
+    assert detail[0]["loc"] == ["body", "quantity"]

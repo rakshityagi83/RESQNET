@@ -85,7 +85,7 @@ def rate_limit_db(monkeypatch):
             if (
                 database != "resqnet_test_concurrency"
                 or port != 5432
-                or revision != "6da8640f44e0"
+                or revision != "8f27c4b19d62"
                 or not table_exists
             ):
                 pytest.fail("Unexpected PostgreSQL test database state")

@@ -2,6 +2,7 @@
 """Internal user account operations for RESQNET."""
 
 import re
+import secrets
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -12,6 +13,12 @@ from passwords import hash_password, verify_password
 
 USERNAME_PATTERN = re.compile(r"^[a-z][a-z0-9_.-]{2,31}$")
 ALLOWED_ROLES = {"admin", "operator"}
+
+# Generate once per process using the same Argon2id parameters
+# as real user passwords. This is not an account credential.
+_DUMMY_PASSWORD_HASH = hash_password(
+    secrets.token_urlsafe(32)
+)
 
 
 def normalize_username(username: str) -> str:
@@ -90,6 +97,12 @@ def authenticate_user(
     )
 
     if user is None:
+        # Reduce timing differences between unknown users
+        # and accounts with incorrect passwords.
+        verify_password(
+            password,
+            _DUMMY_PASSWORD_HASH,
+        )
         return None
 
     password_valid = verify_password(
@@ -97,7 +110,11 @@ def authenticate_user(
         user.password_hash,
     )
 
-    if not password_valid or not user.is_active:
+    if (
+        not password_valid
+        or not user.is_active
+        or user.role not in ALLOWED_ROLES
+    ):
         return None
 
     return user

@@ -1,4 +1,4 @@
-﻿"""Session authorization tests for actual RESQNET write routes."""
+"""Session authorization tests for actual RESQNET write routes."""
 
 import json
 
@@ -10,7 +10,6 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import main
-import security
 import session_authorization
 
 from database import Base
@@ -65,20 +64,6 @@ def session_protected_app(monkeypatch):
         session_authorization,
         "SessionLocal",
         TestSession,
-    )
-
-    # Test-only replacement of the existing authorization
-    # dependencies. Production route configuration is unchanged.
-    monkeypatch.setitem(
-        main.app.dependency_overrides,
-        security.require_admin,
-        session_authorization.require_admin_write,
-    )
-
-    monkeypatch.setitem(
-        main.app.dependency_overrides,
-        security.require_operator,
-        session_authorization.require_operator_write,
     )
 
     # Deterministic external feed for isolated testing.
@@ -360,3 +345,793 @@ def test_actual_write_route_security(
             assert inventory.food == 60
             assert inventory.water == 140
             assert inventory.medicine == 40
+
+
+@pytest.mark.parametrize(
+    "role, expected",
+    [
+        (None, 401),
+        ("operator", 403),
+        ("admin", 200),
+    ],
+)
+def test_pending_queue_permissions(
+    session_protected_app, role, expected
+):
+    TestSession, warehouse_id, tokens = session_protected_app
+
+    before = database_snapshot(TestSession)
+
+    with TestClient(main.app) as client:
+        if role is not None:
+            client.cookies.set(
+                "resqnet_session",
+                tokens[role],
+            )
+
+        response = client.get("/allocations/pending")
+
+    assert response.status_code == expected
+
+    if expected == 200:
+        data = response.json()
+
+        assert data["count"] == 1
+        assert data["has_more"] is False
+
+        record = data["allocations"][0]
+
+        assert record["allocation_id"] == "session-test-allocation"
+        assert record["warehouse_id"] == warehouse_id
+        assert record["status"] == "PENDING"
+
+        assert record["proposed_allocation"] == {
+            "food": 40,
+            "water": 60,
+            "medicine": 10,
+        }
+
+        assert response.headers["Cache-Control"] == "no-store"
+
+    # Viewing the queue must never modify inventory
+    # or allocation records.
+    assert database_snapshot(TestSession) == before
+
+
+def test_pending_queue_excludes_approved_allocations(
+    session_protected_app,
+):
+    TestSession, _, tokens = session_protected_app
+
+    with TestSession.begin() as db:
+        record = db.get(
+            Allocation,
+            "session-test-allocation",
+        )
+
+        record.status = "APPROVED"
+
+    with TestClient(main.app) as client:
+        client.cookies.set(
+            "resqnet_session",
+            tokens["admin"],
+        )
+
+        response = client.get("/allocations/pending")
+
+    assert response.status_code == 200
+    assert response.json()["count"] == 0
+    assert response.json()["allocations"] == []
+
+
+def test_pending_queue_pagination(session_protected_app):
+    from datetime import datetime, timedelta
+
+    TestSession, warehouse_id, tokens = session_protected_app
+
+    with TestSession.begin() as db:
+        original = db.get(
+            Allocation,
+            "session-test-allocation",
+        )
+
+        db.add(Allocation(
+            id="second-test-allocation",
+            incident_id=original.incident_id,
+            warehouse_id=warehouse_id,
+            requirements=original.requirements,
+            status="PENDING",
+            created_at=original.created_at + timedelta(seconds=1),
+        ))
+
+    with TestClient(main.app) as client:
+        client.cookies.set(
+            "resqnet_session",
+            tokens["admin"],
+        )
+
+        first = client.get(
+            "/allocations/pending?limit=1&offset=0"
+        )
+
+        second = client.get(
+            "/allocations/pending?limit=1&offset=1"
+        )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+
+    assert first.json()["count"] == 1
+    assert first.json()["has_more"] is True
+
+    assert second.json()["count"] == 1
+    assert second.json()["has_more"] is False
+
+    assert first.json()["allocations"][0]["allocation_id"] == (
+        "second-test-allocation"
+    )
+
+    assert second.json()["allocations"][0]["allocation_id"] == (
+        "session-test-allocation"
+    )
+
+
+@pytest.mark.parametrize(
+    "query",
+    ["limit=0", "limit=101", "offset=-1"],
+)
+def test_pending_queue_rejects_invalid_pagination(
+    session_protected_app, query
+):
+    _, _, tokens = session_protected_app
+
+    with TestClient(main.app) as client:
+        client.cookies.set(
+            "resqnet_session",
+            tokens["admin"],
+        )
+
+        response = client.get(
+            "/allocations/pending?" + query
+        )
+
+    assert response.status_code == 422
+
+
+def test_pending_queue_rejects_corrupted_allocation(
+    session_protected_app,
+):
+    TestSession, _, tokens = session_protected_app
+
+    with TestSession.begin() as db:
+        record = db.get(
+            Allocation,
+            "session-test-allocation",
+        )
+
+        record.requirements = "invalid-json"
+
+    with TestClient(main.app) as client:
+        client.cookies.set(
+            "resqnet_session",
+            tokens["admin"],
+        )
+
+        response = client.get("/allocations/pending")
+
+    assert response.status_code == 500
+    assert "invalid-json" not in response.text
+
+
+@pytest.mark.parametrize(
+    "role, expected",
+    [
+        (None, 401),
+        ("operator", 403),
+        ("admin", 403),
+    ],
+)
+def test_rejection_requires_authorization_and_csrf(
+    session_protected_app, role, expected
+):
+    TestSession, warehouse_id, tokens = session_protected_app
+
+    before = database_snapshot(TestSession)
+
+    with TestClient(main.app) as client:
+        if role is not None:
+            client.cookies.set(
+                "resqnet_session",
+                tokens[role],
+            )
+
+        response = client.post(
+            "/allocation/session-test-allocation/reject", json={"reason": "  Duplicate test allocation request  "}
+        )
+
+    assert response.status_code == expected
+    assert database_snapshot(TestSession) == before
+
+
+def test_reject_allocation_preserves_inventory(
+    session_protected_app,
+):
+    import os
+    from models import Inventory
+    from csrf_protection import generate_csrf_token
+    from session_service import get_authenticated_user
+
+    TestSession, warehouse_id, tokens = session_protected_app
+
+    token = tokens["admin"]
+
+    with TestSession() as db:
+        admin = get_authenticated_user(db, token)
+
+        assert admin is not None
+        assert admin.role == "admin"
+
+        admin_id = admin.id
+
+        inventory = db.get(Inventory, warehouse_id)
+
+        before = (
+            inventory.food,
+            inventory.water,
+            inventory.medicine,
+        )
+
+        record = db.get(
+            Allocation,
+            "session-test-allocation",
+        )
+
+        original_requirements = record.requirements
+        original_submitter = record.submitted_by
+
+        assert record.decided_by is None
+        assert record.decided_at is None
+
+    # Use genuine session authentication and CSRF protection.
+    with TestClient(main.app) as client:
+        client.cookies.set(
+            "resqnet_session", token
+        )
+
+        response = client.post(
+            "/allocation/session-test-allocation/reject", json={"reason": "  Duplicate test allocation request  "},
+            headers={
+                "Origin": os.getenv(
+                    "FRONTEND_URL",
+                    "http://localhost:5173",
+                ).rstrip("/"),
+                "X-CSRF-Token": generate_csrf_token(token),
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "REJECTED"
+
+    with TestSession() as db:
+        inventory = db.get(Inventory, warehouse_id)
+
+        assert (
+            inventory.food,
+            inventory.water,
+            inventory.medicine,
+        ) == before
+
+        record = db.get(
+            Allocation,
+            "session-test-allocation",
+        )
+
+        assert record.status == "REJECTED"
+        assert record.requirements == original_requirements
+
+        # Verify authenticated administrator attribution.
+        assert record.decided_by == admin_id
+        assert record.rejection_reason == "Duplicate test allocation request"
+        assert record.decided_at is not None
+
+        # Rejection must not overwrite submitter identity.
+        assert record.submitted_by == original_submitter
+
+
+
+@pytest.mark.parametrize(
+    "status",
+    ["APPROVED", "REJECTED"],
+)
+def test_rejection_rejects_finalized_allocations(
+    session_protected_app, status
+):
+    TestSession, _, tokens = session_protected_app
+
+    with TestSession.begin() as db:
+        db.get(
+            Allocation,
+            "session-test-allocation",
+        ).status = status
+
+    before = database_snapshot(TestSession)
+
+    previous = main.app.dependency_overrides.copy()
+
+    main.app.dependency_overrides[
+        main.require_admin_write
+    ] = lambda: None
+
+    try:
+        with TestClient(main.app) as client:
+            response = client.post(
+                "/allocation/session-test-allocation/reject", json={"reason": "  Duplicate test allocation request  "}
+            )
+
+        assert response.status_code == 409
+        assert database_snapshot(TestSession) == before
+
+    finally:
+        main.app.dependency_overrides.clear()
+        main.app.dependency_overrides.update(previous)
+
+
+def test_rejection_unknown_allocation(
+    session_protected_app,
+):
+    TestSession, _, tokens = session_protected_app
+
+    before = database_snapshot(TestSession)
+
+    previous = main.app.dependency_overrides.copy()
+
+    main.app.dependency_overrides[
+        main.require_admin_write
+    ] = lambda: None
+
+    try:
+        with TestClient(main.app) as client:
+            response = client.post(
+                "/allocation/nonexistent-allocation/reject", json={"reason": "  Duplicate test allocation request  "}
+            )
+
+        assert response.status_code == 404
+        assert database_snapshot(TestSession) == before
+
+    finally:
+        main.app.dependency_overrides.clear()
+        main.app.dependency_overrides.update(previous)
+
+
+@pytest.mark.parametrize(
+    "role, expected",
+    [
+        (None, 401),
+        ("operator", 403),
+        ("admin", 200),
+    ],
+)
+def test_history_permissions(
+    session_protected_app, role, expected
+):
+    TestSession, _, tokens = session_protected_app
+
+    before = database_snapshot(TestSession)
+
+    with TestClient(main.app) as client:
+        if role is not None:
+            client.cookies.set(
+                "resqnet_session", tokens[role]
+            )
+
+        response = client.get("/allocations/history")
+
+        assert response.status_code == expected
+
+        if expected == 200:
+            assert response.json()["count"] == 1
+            assert response.headers["Cache-Control"] == "no-store"
+        else:
+            assert "allocations" not in response.json()
+
+    assert database_snapshot(TestSession) == before
+
+
+def test_history_status_filters(session_protected_app):
+    TestSession, warehouse_id, tokens = session_protected_app
+
+    with TestSession.begin() as db:
+        original = db.get(
+            Allocation, "session-test-allocation"
+        )
+
+        for status in ("APPROVED", "REJECTED"):
+            db.add(Allocation(
+                id="history-" + status.lower(),
+                incident_id=original.incident_id,
+                warehouse_id=warehouse_id,
+                requirements=original.requirements,
+                status=status,
+            ))
+
+    before = database_snapshot(TestSession)
+
+    with TestClient(main.app) as client:
+        client.cookies.set(
+            "resqnet_session", tokens["admin"]
+        )
+
+        response = client.get("/allocations/history")
+
+        assert response.status_code == 200
+        assert response.json()["count"] == 3
+
+        for status in (
+            "PENDING", "APPROVED", "REJECTED"
+        ):
+            response = client.get(
+                "/allocations/history",
+                params={"status": status},
+            )
+
+            assert response.status_code == 200
+
+            data = response.json()
+
+            assert data["count"] == 1
+
+            assert (
+                data["allocations"][0]["status"]
+                == status
+            )
+
+        pending = client.get("/allocations/pending")
+
+        assert pending.status_code == 200
+        assert pending.json()["count"] == 1
+        assert (
+            pending.json()["allocations"][0]["status"]
+            == "PENDING"
+        )
+
+    assert database_snapshot(TestSession) == before
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["allocation_id", "incident_id", "warehouse"],
+)
+def test_history_search(
+    session_protected_app, field
+):
+    from models import Warehouse
+
+    TestSession, warehouse_id, tokens = session_protected_app
+
+    with TestSession() as db:
+        record = db.get(
+            Allocation, "session-test-allocation"
+        )
+
+        warehouse = db.get(Warehouse, warehouse_id)
+
+        values = {
+            "allocation_id": record.id,
+            "incident_id": record.incident_id,
+            "warehouse": warehouse.name,
+        }
+
+        search = values[field].swapcase()
+
+    with TestClient(main.app) as client:
+        client.cookies.set(
+            "resqnet_session", tokens["admin"]
+        )
+
+        response = client.get(
+            "/allocations/history",
+            params={"q": search},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["count"] == 1
+
+        assert (
+            response.json()["allocations"][0]["allocation_id"]
+            == "session-test-allocation"
+        )
+
+
+def test_history_literal_wildcard_search(
+    session_protected_app,
+):
+    _, _, tokens = session_protected_app
+
+    with TestClient(main.app) as client:
+        client.cookies.set(
+            "resqnet_session", tokens["admin"]
+        )
+
+        response = client.get(
+            "/allocations/history",
+            params={"q": "%"},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["count"] == 0
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"status": "UNKNOWN"},
+        {"limit": 0},
+        {"offset": -1},
+        {"q": "x" * 151},
+    ],
+)
+def test_history_invalid_filters(
+    session_protected_app, params
+):
+    _, _, tokens = session_protected_app
+
+    with TestClient(main.app) as client:
+        client.cookies.set(
+            "resqnet_session", tokens["admin"]
+        )
+
+        response = client.get(
+            "/allocations/history",
+            params=params,
+        )
+
+        assert response.status_code == 422
+
+
+def test_history_pagination(session_protected_app):
+    TestSession, _, tokens = session_protected_app
+
+    before = database_snapshot(TestSession)
+
+    with TestClient(main.app) as client:
+        client.cookies.set(
+            "resqnet_session", tokens["admin"]
+        )
+
+        response = client.get(
+            "/allocations/history",
+            params={"limit": 1, "offset": 1},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["count"] == 0
+        assert response.json()["has_more"] is False
+
+    assert database_snapshot(TestSession) == before
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        None,
+        {},
+        {"reason": "    "},
+        {"reason": "Duplicate"},
+        {"reason": "x" * 501},
+        {"reason": 1234567890},
+        {"reason": "Invalid\x00allocation reason"},
+        {
+            "reason": "Duplicate allocation request",
+            "decided_by": 999,
+        },
+    ],
+)
+def test_rejection_invalid_reason(
+    session_protected_app, payload
+):
+    import os
+    from models import Inventory
+    from csrf_protection import generate_csrf_token
+
+    TestSession, warehouse_id, tokens = session_protected_app
+
+    def read_state():
+        with TestSession() as db:
+            record = db.get(
+                Allocation,
+                "session-test-allocation",
+            )
+
+            inventory = db.get(Inventory, warehouse_id)
+
+            return (
+                record.status,
+                record.requirements,
+                record.submitted_by,
+                record.decided_by,
+                record.decided_at,
+                record.rejection_reason,
+                inventory.food,
+                inventory.water,
+                inventory.medicine,
+            )
+
+    before = read_state()
+
+    token = tokens["admin"]
+
+    with TestClient(main.app) as client:
+        client.cookies.set(
+            "resqnet_session", token
+        )
+
+        response = client.post(
+            "/allocation/session-test-allocation/reject",
+            headers={
+                "Origin": os.getenv(
+                    "FRONTEND_URL",
+                    "http://localhost:5173",
+                ).rstrip("/"),
+                "X-CSRF-Token": generate_csrf_token(token),
+            },
+            json=payload,
+        )
+
+    assert response.status_code == 422
+    assert read_state() == before
+
+
+@pytest.mark.parametrize(
+    "status",
+    ["PENDING", "APPROVED", "REJECTED"],
+)
+def test_history_audit_fields(
+    session_protected_app, status
+):
+    from datetime import datetime, timezone
+    from session_service import get_authenticated_user
+
+    TestSession, _, tokens = session_protected_app
+
+    decided_at = datetime.now(timezone.utc)
+
+    with TestSession.begin() as db:
+        operator = get_authenticated_user(
+            db, tokens["operator"]
+        )
+
+        admin = get_authenticated_user(
+            db, tokens["admin"]
+        )
+
+        assert operator is not None
+        assert admin is not None
+        assert operator.id != admin.id
+
+        operator_id = operator.id
+        operator_username = operator.username
+
+        admin_id = admin.id
+        admin_username = admin.username
+
+        record = db.get(
+            Allocation,
+            "session-test-allocation",
+        )
+
+        record.status = status
+        record.submitted_by = operator_id
+
+        if status != "PENDING":
+            record.decided_by = admin_id
+            record.decided_at = decided_at
+
+        if status == "REJECTED":
+            record.rejection_reason = (
+                "Duplicate allocation request"
+            )
+
+    before = database_snapshot(TestSession)
+
+    with TestClient(main.app) as client:
+        client.cookies.set(
+            "resqnet_session",
+            tokens["admin"],
+        )
+
+        response = client.get(
+            "/allocations/history",
+            params={"status": status},
+        )
+
+        assert response.status_code == 200
+
+        data = response.json()["allocations"][0]
+
+        assert data["submitted_by"] == operator_id
+
+        assert (
+            data["submitted_by_username"]
+            == operator_username
+        )
+
+        if status == "PENDING":
+            assert data["decided_by"] is None
+            assert data["decided_by_username"] is None
+            assert data["decided_at"] is None
+
+            pending = client.get(
+                "/allocations/pending"
+            )
+
+            assert pending.status_code == 200
+            assert pending.json()["allocations"][0] == data
+
+        else:
+            assert data["decided_by"] == admin_id
+
+            assert (
+                data["decided_by_username"]
+                == admin_username
+            )
+
+            timestamp = datetime.fromisoformat(
+                data["decided_at"]
+            )
+
+            assert timestamp == decided_at
+            assert timestamp.utcoffset().total_seconds() == 0
+
+        assert data["rejection_reason"] == (
+            "Duplicate allocation request"
+            if status == "REJECTED"
+            else None
+        )
+
+        for forbidden in (
+            "password",
+            "password_hash",
+            "token_hash",
+            "csrf_token",
+            "session_token",
+        ):
+            assert forbidden not in data
+
+    assert database_snapshot(TestSession) == before
+
+
+def test_history_preserves_unknown_legacy_audit_fields(
+    session_protected_app,
+):
+    TestSession, _, tokens = session_protected_app
+
+    with TestSession.begin() as db:
+        record = db.get(
+            Allocation,
+            "session-test-allocation",
+        )
+
+        record.status = "REJECTED"
+
+    with TestClient(main.app) as client:
+        client.cookies.set(
+            "resqnet_session",
+            tokens["admin"],
+        )
+
+        response = client.get("/allocations/history")
+
+    assert response.status_code == 200
+
+    data = response.json()["allocations"][0]
+
+    for field in (
+        "submitted_by",
+        "submitted_by_username",
+        "decided_by",
+        "decided_by_username",
+        "decided_at",
+        "rejection_reason",
+    ):
+        assert field in data
+        assert data[field] is None

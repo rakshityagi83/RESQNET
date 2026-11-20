@@ -1,3 +1,15 @@
+from models import User as AuditUser
+from session_service import as_utc as normalize_audit_time
+from typing import Annotated
+from pydantic import ConfigDict, StringConstraints, field_validator
+from datetime import datetime as audit_datetime, timezone as audit_timezone
+from fastapi import Response
+from typing import Literal
+from sqlalchemy import or_
+from session_authorization import (
+    SessionPrincipal,
+    require_session_admin,
+)
 from datetime import date, timedelta, datetime
 import requests
 import os
@@ -11,13 +23,16 @@ import threading
 import time
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, Depends
-from fastapi.middleware.cors import CORSMiddleware
+from browser_security import configure_browser_cors
 from pydantic import BaseModel, Field
 from google import genai
 from sqlalchemy.orm import Session
 from database import SessionLocal
 from models import Warehouse, Inventory, Allocation
-from security import require_admin, require_operator
+from session_authorization import (
+    require_admin_write,
+    require_operator_write,
+)
 
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -31,16 +46,8 @@ app = FastAPI(
 app.include_router(warehouse_discovery_router)
 app.include_router(recommendation_router)
 app.include_router(routing_router)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:5174",
-    ] + ([os.getenv("FRONTEND_URL").rstrip("/")] if os.getenv("FRONTEND_URL") else []),
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+configure_browser_cors(app)
+
 @app.get("/")
 def home():
     return {"message": "RESQNET India backend operational", "status": "online"}
@@ -302,7 +309,7 @@ class AllocationInput(BaseModel):
     medicine: int = Field(ge=0)
 
 
-@app.post("/warehouses", dependencies=[Depends(require_admin)])
+@app.post("/warehouses", dependencies=[Depends(require_admin_write)])
 def register_warehouse(item: WarehouseInput):
     with SessionLocal.begin() as session:
         warehouse = Warehouse(
@@ -357,7 +364,7 @@ def list_warehouses():
 
 @app.put(
     "/warehouses/{warehouse_id}/inventory",
-    dependencies=[Depends(require_admin)]
+    dependencies=[Depends(require_admin_write)]
 )
 def update_inventory(warehouse_id: int, item: InventoryInput):
     with SessionLocal.begin() as session:
@@ -386,9 +393,12 @@ def update_inventory(warehouse_id: int, item: InventoryInput):
     }
 @app.post(
     "/allocation/preview",
-    dependencies=[Depends(require_operator)]
+    dependencies=[Depends(require_operator_write)]
 )
-def allocation_preview(item: AllocationInput):
+def allocation_preview(
+    item: AllocationInput,
+    principal: SessionPrincipal = Depends(require_operator_write),
+):
     try:
         incidents = fetch_gdacs()
     except Exception as error:
@@ -456,7 +466,8 @@ def allocation_preview(item: AllocationInput):
                 "allocation": allocation,
                 "shortages": shortages
             }),
-            status="PENDING"
+            status="PENDING",
+            submitted_by=principal.user_id
         )
 
         session.add(record)
@@ -476,9 +487,12 @@ def allocation_preview(item: AllocationInput):
 
 @app.post(
     "/allocation/{allocation_id}/approve",
-    dependencies=[Depends(require_admin)]
+    dependencies=[Depends(require_admin_write)]
 )
-def approve_allocation(allocation_id: str):
+def approve_allocation(
+    allocation_id: str,
+    principal: SessionPrincipal = Depends(require_admin_write),
+):
     with SessionLocal.begin() as session:
         record = (
             session.query(Allocation)
@@ -527,6 +541,8 @@ def approve_allocation(allocation_id: str):
         inventory.medicine -= allocation["medicine"]
 
         record.status = "APPROVED"
+        record.decided_by = principal.user_id
+        record.decided_at = audit_datetime.now(audit_timezone.utc)
 
     return {
         "allocation_id": allocation_id,
@@ -619,3 +635,281 @@ All recommendations require human verification.
         raise
     except Exception as error:
         raise HTTPException(status_code=502, detail=str(error))
+
+
+@app.get("/allocations/pending")
+def list_pending_allocations(
+    response: Response,
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    principal: SessionPrincipal = Depends(require_session_admin),
+):
+    """Retrieve pending allocations for administrative review."""
+
+    return read_allocation_records(
+        response,
+        limit,
+        offset,
+        statuses=("PENDING",),
+    )
+
+
+@app.get("/allocations/history")
+def list_allocation_history(
+    response: Response,
+    status: Literal[
+        "ALL", "PENDING", "APPROVED", "REJECTED"
+    ] = "ALL",
+    q: str = Query(default="", max_length=150),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    principal: SessionPrincipal = Depends(require_session_admin),
+):
+    """Retrieve persistent allocation history."""
+
+    statuses = (
+        ("PENDING", "APPROVED", "REJECTED")
+        if status == "ALL"
+        else (status,)
+    )
+
+    return read_allocation_records(
+        response,
+        limit,
+        offset,
+        statuses=statuses,
+        search=q.strip(),
+    )
+
+
+def read_allocation_records(
+    response,
+    limit,
+    offset,
+    *,
+    statuses,
+    search="",
+):
+    """Shared read-only allocation retrieval."""
+
+    response.headers["Cache-Control"] = "no-store"
+
+    with SessionLocal() as session:
+        query = (
+            session.query(
+                Allocation,
+                Warehouse.name,
+            )
+            .outerjoin(
+                Warehouse,
+                Warehouse.id == Allocation.warehouse_id,
+            )
+            .filter(Allocation.status.in_(statuses))
+        )
+
+        if search:
+            # Treat SQL wildcard characters as literal text.
+            escaped = (
+                search.replace("/", "//")
+                .replace("%", "/%")
+                .replace("_", "/_")
+            )
+
+            pattern = "%" + escaped + "%"
+
+            query = query.filter(
+                or_(
+                    Allocation.id.ilike(pattern, escape="/"),
+                    Allocation.incident_id.ilike(
+                        pattern, escape="/"
+                    ),
+                    Warehouse.name.ilike(
+                        pattern, escape="/"
+                    ),
+                )
+            )
+
+        rows = (
+            query.order_by(
+                Allocation.created_at.desc(),
+                Allocation.id.desc(),
+            )
+            .offset(offset)
+            .limit(limit + 1)
+            .all()
+        )
+
+        has_more = len(rows) > limit
+
+        # Resolve account identities in one batched query.
+        actor_ids = {
+            actor_id
+            for record, _ in rows[:limit]
+            for actor_id in (
+                record.submitted_by,
+                record.decided_by,
+            )
+            if actor_id is not None
+        }
+
+        usernames = {}
+
+        if actor_ids:
+            usernames = dict(
+                session.query(
+                    AuditUser.id,
+                    AuditUser.username,
+                )
+                .filter(AuditUser.id.in_(actor_ids))
+                .all()
+            )
+
+        results = []
+
+        for record, warehouse_name in rows[:limit]:
+            try:
+                requirements = json.loads(record.requirements)
+
+                for section in (
+                    "requested",
+                    "allocation",
+                    "shortages",
+                ):
+                    quantities = requirements[section]
+
+                    if not isinstance(quantities, dict):
+                        raise ValueError("Invalid quantities")
+
+                    for resource in ("food", "water", "medicine"):
+                        value = quantities[resource]
+
+                        if type(value) is not int or value < 0:
+                            raise ValueError("Invalid quantity")
+
+                for resource in ("food", "water", "medicine"):
+                    if (
+                        requirements["requested"][resource]
+                        != requirements["allocation"][resource]
+                        + requirements["shortages"][resource]
+                    ):
+                        raise ValueError("Inconsistent allocation")
+
+            except (ValueError, TypeError, KeyError):
+                raise HTTPException(
+                    status_code=500,
+                    detail="Stored allocation could not be read safely",
+                ) from None
+
+            results.append({
+                "allocation_id": record.id,
+                "incident_id": record.incident_id,
+                "warehouse_id": record.warehouse_id,
+                "warehouse": warehouse_name,
+                "status": record.status,
+                "created_at": record.created_at,
+                "submitted_by": record.submitted_by,
+                "submitted_by_username": usernames.get(
+                    record.submitted_by
+                ),
+                "decided_by": record.decided_by,
+                "decided_by_username": usernames.get(
+                    record.decided_by
+                ),
+                "decided_at": (
+                    normalize_audit_time(record.decided_at)
+                    if record.decided_at is not None
+                    else None
+                ),
+                "rejection_reason": record.rejection_reason,
+                "requested": {
+                    key: requirements["requested"][key]
+                    for key in ("food", "water", "medicine")
+                },
+                "proposed_allocation": {
+                    key: requirements["allocation"][key]
+                    for key in ("food", "water", "medicine")
+                },
+                "shortages": {
+                    key: requirements["shortages"][key]
+                    for key in ("food", "water", "medicine")
+                },
+            })
+
+    return {
+        "allocations": results,
+        "count": len(results),
+        "limit": limit,
+        "offset": offset,
+        "has_more": has_more,
+    }
+
+
+class AllocationRejectionInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: Annotated[
+        str,
+        StringConstraints(
+            strip_whitespace=True,
+            min_length=10,
+            max_length=500,
+            strict=True,
+        ),
+    ]
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, value):
+        if any(
+            ord(character) < 32 or
+            127 <= ord(character) <= 159
+            for character in value
+        ):
+            raise ValueError(
+                "Rejection reason contains control characters"
+            )
+
+        return value
+
+
+@app.post(
+    "/allocation/{allocation_id}/reject",
+    dependencies=[Depends(require_admin_write)],
+)
+def reject_allocation(
+    allocation_id: str,
+    payload: AllocationRejectionInput,
+    principal: SessionPrincipal = Depends(require_admin_write),
+):
+    """Reject a pending allocation without deducting inventory."""
+
+    with SessionLocal.begin() as session:
+        record = (
+            session.query(Allocation)
+            .filter(Allocation.id == allocation_id)
+            .with_for_update()
+            .first()
+        )
+
+        if record is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Allocation not found",
+            )
+
+        if record.status != "PENDING":
+            raise HTTPException(
+                status_code=409,
+                detail="Allocation is not pending approval",
+            )
+
+        record.status = "REJECTED"
+        record.rejection_reason = payload.reason
+        record.decided_by = principal.user_id
+        record.decided_at = audit_datetime.now(audit_timezone.utc)
+
+    return {
+        "allocation_id": allocation_id,
+        "status": "REJECTED",
+        "message": "Allocation rejected. Inventory unchanged.",
+    }

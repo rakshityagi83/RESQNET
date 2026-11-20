@@ -6,10 +6,20 @@ Not mounted in main.py until security testing is complete.
 import os
 import ipaddress
 
-from fastapi import APIRouter, HTTPException, Request, Response
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from pydantic import BaseModel, Field, field_validator
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 
-from account_service import authenticate_user
+from account_service import (
+    authenticate_user,
+    normalize_username,
+)
+from session_authorization import (
+    SessionPrincipal,
+    get_current_principal,
+)
 from database import SessionLocal
 from session_service import (
     create_session,
@@ -49,12 +59,57 @@ def get_login_client_ip(request: Request) -> str:
         )
 
 
-router = APIRouter(prefix="/auth", tags=["Authentication"])
+class SafeAuthRoute(APIRoute):
+    """Prevent authentication validation errors leaking input values."""
+
+    def get_route_handler(self):
+        original_handler = super().get_route_handler()
+
+        async def safe_handler(request: Request):
+            try:
+                return await original_handler(request)
+
+            except RequestValidationError:
+                return JSONResponse(
+                    status_code=422,
+                    content={
+                        "detail": "Invalid authentication request",
+                    },
+                    headers={
+                        "Cache-Control": "no-store",
+                    },
+                )
+
+        return safe_handler
+
+
+router = APIRouter(
+    prefix="/auth",
+    tags=["Authentication"],
+    route_class=SafeAuthRoute,
+)
 
 
 class LoginRequest(BaseModel):
     username: str = Field(min_length=3, max_length=80)
     password: str = Field(min_length=1, max_length=128)
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, value: str) -> str:
+        """Normalize and validate before rate limiting."""
+        return normalize_username(value)
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_encoding(cls, value: str) -> str:
+        """Reject malformed Unicode before password verification."""
+        try:
+            value.encode("utf-8")
+        except UnicodeEncodeError:
+            raise ValueError("Invalid password encoding") from None
+
+        return value
 
 
 
@@ -201,3 +256,32 @@ def logout(request: Request) -> Response:
     )
 
     return response
+
+
+@router.post(
+    "/session",
+    dependencies=[Depends(check_login_origin)],
+)
+def session_profile(
+    request: Request,
+    response: Response,
+    principal: SessionPrincipal = Depends(
+        get_current_principal
+    ),
+):
+    """Restore browser authentication state without creating a session."""
+
+    token = request.cookies.get("resqnet_session")
+
+    csrf_token = generate_csrf_token(token)
+
+    response.headers["Cache-Control"] = "no-store"
+
+    return {
+        "user": {
+            "id": principal.user_id,
+            "username": principal.username,
+            "role": principal.role,
+        },
+        "csrf_token": csrf_token,
+    }

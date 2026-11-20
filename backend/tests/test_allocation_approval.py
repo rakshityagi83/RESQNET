@@ -13,14 +13,9 @@ from models import Warehouse, Inventory, Allocation
 
 
 @pytest.fixture
-def admin_headers(monkeypatch):
-    # Disposable test credentials only.
-    monkeypatch.setenv("RESQNET_ADMIN_TOKEN", "a" * 48)
-    monkeypatch.setenv("RESQNET_OPERATOR_TOKEN", "b" * 48)
-
-    return {
-        "Authorization": "Bearer " + "a" * 48
-    }
+def admin_headers(isolated_db, session_test_headers):
+    TestSession, _ = isolated_db
+    return session_test_headers(TestSession, "admin")[0]
 
 
 @pytest.fixture

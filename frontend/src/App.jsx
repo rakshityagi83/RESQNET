@@ -1,15 +1,74 @@
 
 import { useState, useEffect, useRef } from 'react'
 import DisasterMap from './components/DisasterMap'
+import AuthControls from './auth/AuthControls.jsx'
+import PendingAllocationQueue from './components/PendingAllocationQueue.jsx'
+import { useAuth } from './auth/AuthContext.jsx'
+import { authClient, AuthApiError } from './services/authClient.js'
 import {
   Activity, AlertTriangle, ArrowUpRight, BrainCircuit,
   CheckCircle2, Clock, Droplets, HeartPulse, Package,
   Radio, Shield, Users, Warehouse, RefreshCw, Truck
 } from 'lucide-react'
 
-const API = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+const localAuthEnabled =
+  import.meta.env.DEV &&
+  window.location.hostname === 'localhost' &&
+  ['5173', '5174'].includes(window.location.port)
+
+const API = localAuthEnabled
+  ? 'http://localhost:8000'
+  : import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+
+const inputClass =
+  'w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500'
+
+const Field = ({ label, value, onChange, type = 'text', required = true }) => (
+  <label className="block">
+    <span className="mb-2 block text-xs text-slate-400">{label}</span>
+    <input
+      className={inputClass}
+      type={type}
+      min={type === 'number' ? 0 : undefined}
+      required={required}
+      value={value}
+      onChange={event => onChange(event.target.value)}
+    />
+  </label>
+)
 
 function App() {
+  const {
+    user,
+    isAuthenticated,
+    isAdmin,
+    isOperator,
+    csrfToken,
+    busy: authBusy,
+    recoverSession
+  } = useAuth()
+
+  const canAdminWrite =
+    isAuthenticated && isAdmin && !authBusy && Boolean(csrfToken)
+
+  const canOperatorWrite =
+    isAuthenticated && isOperator && !authBusy && Boolean(csrfToken)
+
+  const protectedWrite = async (path, method, body) => {
+    try {
+      return await authClient.protectedWrite(
+        path, method, body, csrfToken
+      )
+    } catch (error) {
+      if (error instanceof AuthApiError && error.status === 401) {
+        await recoverSession()
+      }
+
+      // Never automatically retry a potentially mutating request.
+      throw error
+    }
+  }
+
   const [activeTab, setActiveTab] = useState('Overview')
   const [incidents, setIncidents] = useState([])
   const [allIncidents, setAllIncidents] = useState([])
@@ -55,6 +114,10 @@ const [recommendationsError, setRecommendationsError] = useState('')
 
   const [allocation, setAllocation] = useState(null)
   const [allocating, setAllocating] = useState(false)
+
+  useEffect(() => {
+    setAllocation(null)
+  }, [user?.id, user?.role])
 
   const [warehouseForm, setWarehouseForm] = useState({
     name: '',
@@ -117,7 +180,7 @@ const [recommendationsError, setRecommendationsError] = useState('')
 
       if (
         allocationForm.incident_id &&
-        !priorityIncidents.some(
+        !fetchedIncidents.some(
           item => item.id === allocationForm.incident_id
         )
       ) {
@@ -301,35 +364,42 @@ useEffect(() => {
 
   const registerWarehouse = async (event) => {
     event.preventDefault()
+
+    if (!canAdminWrite) {
+      setMessage('Administrator authentication required.')
+      return
+    }
+
+    let registeredId = null
+
     setMessage('Registering warehouse...')
 
     try {
-      const response = await fetch(`${API}/warehouses`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const response = await protectedWrite(
+        '/warehouses',
+        'POST',
+        {
           name: warehouseForm.name,
           state: warehouseForm.state,
           district: warehouseForm.district,
           latitude: warehouseForm.latitude === '' ? null : Number(warehouseForm.latitude),
           longitude: warehouseForm.longitude === '' ? null : Number(warehouseForm.longitude),
           verified_by: warehouseForm.verified_by
-        })
-      })
+        }
+      )
 
       const data = await response.json()
       if (!response.ok) throw new Error(data.detail || 'Warehouse registration failed')
 
-      const inventoryResponse = await fetch(
-        `${API}/warehouses/${data.warehouse_id}/inventory`,
+      registeredId = data.warehouse_id
+
+      const inventoryResponse = await protectedWrite(
+        `/warehouses/${registeredId}/inventory`,
+        'PUT',
         {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            food: Number(warehouseForm.food),
-            water: Number(warehouseForm.water),
-            medicine: Number(warehouseForm.medicine)
-          })
+          food: Number(warehouseForm.food),
+          water: Number(warehouseForm.water),
+          medicine: Number(warehouseForm.medicine)
         }
       )
 
@@ -344,14 +414,26 @@ useEffect(() => {
         food: 0, water: 0, medicine: 0
       })
 
-      setMessage('Warehouse and inventory registered successfully.')
       await loadData()
+      setMessage('Warehouse and inventory registered successfully.')
     } catch (error) {
-      setMessage(error.message)
+      if (registeredId !== null) {
+        await loadData()
+        setMessage(
+          `Warehouse ${registeredId} was registered, but initial stock could not be confirmed. Check its inventory before retrying.`
+        )
+      } else {
+        setMessage(error.message)
+      }
     }
   }
 
   const updateStock = async (warehouse) => {
+    if (!canAdminWrite) {
+      setMessage('Administrator authentication required.')
+      return
+    }
+
     const food = window.prompt('Enter confirmed food stock:', warehouse.food)
     if (food === null) return
     const water = window.prompt('Enter confirmed water stock:', warehouse.water)
@@ -366,24 +448,21 @@ useEffect(() => {
     }
 
     try {
-      const response = await fetch(
-        `${API}/warehouses/${warehouse.id}/inventory`,
+      const response = await protectedWrite(
+        `/warehouses/${warehouse.id}/inventory`,
+        'PUT',
         {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            food: values[0],
-            water: values[1],
-            medicine: values[2]
-          })
+          food: values[0],
+          water: values[1],
+          medicine: values[2]
         }
       )
 
       const data = await response.json()
       if (!response.ok) throw new Error(data.detail || 'Stock update failed')
 
-      setMessage('Inventory updated.')
       await loadData()
+      setMessage('Inventory updated.')
     } catch (error) {
       setMessage(error.message)
     }
@@ -569,22 +648,28 @@ useEffect(() => {
 
   const previewAllocation = async (event) => {
     event.preventDefault()
+
+    if (!canOperatorWrite) {
+      setMessage('Personnel authentication required.')
+      return
+    }
+
     setAllocating(true)
     setAllocation(null)
     setMessage('Calculating allocation preview...')
 
     try {
-      const response = await fetch(`${API}/allocation/preview`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const response = await protectedWrite(
+        '/allocation/preview',
+        'POST',
+        {
           incident_id: allocationForm.incident_id,
           warehouse_id: Number(allocationForm.warehouse_id),
           food: Number(allocationForm.food),
           water: Number(allocationForm.water),
           medicine: Number(allocationForm.medicine)
-        })
-      })
+        }
+      )
 
       const data = await response.json()
       if (!response.ok) throw new Error(data.detail || 'Allocation preview failed')
@@ -599,6 +684,11 @@ useEffect(() => {
   }
 
   const approveAllocation = async () => {
+    if (!canAdminWrite) {
+      setMessage('Administrator approval required.')
+      return
+    }
+
     if (!allocation?.allocation_id) return
 
     if (!window.confirm('Approve this allocation and deduct the displayed stock?')) {
@@ -606,41 +696,24 @@ useEffect(() => {
     }
 
     try {
-      const response = await fetch(
-        `${API}/allocation/${allocation.allocation_id}/approve`,
-        { method: 'POST' }
+      const response = await protectedWrite(
+        `/allocation/${allocation.allocation_id}/approve`,
+        'POST'
       )
 
       const data = await response.json()
       if (!response.ok) throw new Error(data.detail || 'Approval failed')
 
-      setMessage('Allocation approved. Inventory has been deducted.')
       setAllocation(null)
       await loadData()
+      setMessage('Allocation approved. Inventory has been deducted.')
     } catch (error) {
       setMessage(error.message)
     }
   }
 
-  const inputClass =
-    'w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500'
-
   const cardClass =
     'rounded-2xl border border-slate-800 bg-[#101a2b] p-5'
-
-  const Field = ({ label, value, onChange, type = 'text', required = true }) => (
-    <label className="block">
-      <span className="mb-2 block text-xs text-slate-400">{label}</span>
-      <input
-        className={inputClass}
-        type={type}
-        min={type === 'number' ? 0 : undefined}
-        required={required}
-        value={value}
-        onChange={event => onChange(event.target.value)}
-      />
-    </label>
-  )
 
   const NavButton = ({ name, icon: Icon }) => (
     <button
@@ -693,6 +766,53 @@ useEffect(() => {
         </aside>
 
         <main className="min-w-0 flex-1 p-5 md:p-8">
+
+          <div className="mb-6 lg:hidden">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="rounded-xl bg-cyan-500/15 p-2 text-cyan-400">
+                <Shield size={22} />
+              </div>
+
+              <div>
+                <h1 className="text-lg font-bold">
+                  RESQNET INDIA
+                </h1>
+                <p className="text-[9px] tracking-[2px] text-slate-500">
+                  EMERGENCY RESPONSE
+                </p>
+              </div>
+            </div>
+
+            <nav
+              aria-label="Mobile workspace navigation"
+              className="grid grid-cols-2 gap-2 rounded-xl border border-slate-800 bg-[#0c1422] p-2 sm:grid-cols-4"
+            >
+              {[
+                ['Overview', Activity],
+                ['Incidents', AlertTriangle],
+                ['Warehouses', Warehouse],
+                ['Allocation', Truck]
+              ].map(([name, Icon]) => (
+                <button
+                  key={name}
+                  type="button"
+                  aria-current={
+                    activeTab === name ? 'page' : undefined
+                  }
+                  onClick={() => setActiveTab(name)}
+                  className={`flex items-center justify-center gap-2 rounded-lg px-2 py-3 text-xs font-medium transition ${
+                    activeTab === name
+                      ? 'bg-cyan-500/10 text-cyan-400'
+                      : 'text-slate-400 hover:bg-slate-800'
+                  }`}
+                >
+                  <Icon size={16} />
+                  {name}
+                </button>
+              ))}
+            </nav>
+          </div>
+
           <header className="mb-7 flex flex-wrap items-center justify-between gap-4">
             <div>
               <div className="mb-1 flex items-center gap-2 text-xs text-cyan-400">
@@ -705,7 +825,8 @@ useEffect(() => {
               </p>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap items-center gap-3">
+              <AuthControls />
               <button
                 onClick={loadData}
                 disabled={loading}
@@ -1427,6 +1548,12 @@ incidents={
                   Enter actual stock figures supplied by an authorised operator.
                 </p>
 
+                {!canAdminWrite && (
+                  <p role="status" className="mb-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-sm text-amber-300">
+                    Administrator access is required to register warehouses and update stock.
+                  </p>
+                )}
+
                 <form onSubmit={registerWarehouse} className="grid gap-4 md:grid-cols-2">
                   <Field label="Warehouse name" value={warehouseForm.name} onChange={v => updateWarehouseForm('name', v)} />
                   <Field label="Operator / verifier name" value={warehouseForm.verified_by} onChange={v => updateWarehouseForm('verified_by', v)} />
@@ -1438,7 +1565,8 @@ incidents={
                   <Field label="Water (litres)" type="number" value={warehouseForm.water} onChange={v => updateWarehouseForm('water', v)} />
                   <Field label="Medical kits (units)" type="number" value={warehouseForm.medicine} onChange={v => updateWarehouseForm('medicine', v)} />
                   <div className="flex items-end">
-                    <button className="w-full rounded-lg bg-cyan-600 px-4 py-3 text-sm font-semibold hover:bg-cyan-500">
+                    <button disabled={!canAdminWrite}
+                      className="w-full rounded-lg bg-cyan-600 px-4 py-3 text-sm font-semibold hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-40">
                       Register Warehouse
                     </button>
                   </div>
@@ -1467,7 +1595,8 @@ incidents={
                           </p>
                         </div>
                         <button onClick={() => updateStock(warehouse)}
-                          className="h-fit rounded-lg border border-cyan-500/30 px-3 py-2 text-xs text-cyan-400">
+                          disabled={!canAdminWrite}
+                          className="h-fit rounded-lg border border-cyan-500/30 px-3 py-2 text-xs text-cyan-400 disabled:cursor-not-allowed disabled:opacity-40">
                           Update stock
                         </button>
                       </div>
@@ -1497,11 +1626,33 @@ incidents={
 
           {activeTab === 'Allocation' && (
             <>
+              {isAdmin && user && (
+                <PendingAllocationQueue
+                  key={user.id}
+                  onApproved={loadData}
+                />
+              )}
+
               <section className={`${cardClass} mb-6`}>
                 <h3 className="mb-2 font-semibold">Relief Resource Allocation</h3>
                 <p className="mb-5 text-xs text-slate-400">
-                  Select a live incident, warehouse and requested quantities to calculate an allocation preview.
+                  Select any current live GDACS incident, warehouse and requested quantities to calculate an allocation preview.
                 </p>
+
+                {!canOperatorWrite && (
+                  <p role="status" className="mb-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-sm text-amber-300">
+                    Sign in as authorized personnel to generate allocation previews.
+                  </p>
+                )}
+
+                {allIncidents.find(
+                  item => item.id === allocationForm.incident_id
+                )?.severity === 'Green' && (
+                  <p role="status" className="mb-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-sm text-emerald-300">
+                    Green alert selected. This is not a priority incident.
+                    Verify actual relief requirements before approving supplies.
+                  </p>
+                )}
 
                 <form onSubmit={previewAllocation} className="grid gap-4 md:grid-cols-2">
                   <label>
@@ -1510,7 +1661,7 @@ incidents={
                       value={allocationForm.incident_id}
                       onChange={e => updateAllocationForm('incident_id', e.target.value)}>
                       <option value="">Select incident</option>
-                      {incidents.map(item => (
+                      {allIncidents.map(item => (
                         <option key={item.id} value={item.id}>
                           {item.location} — {item.severity}
                         </option>
@@ -1540,7 +1691,7 @@ incidents={
                     onChange={v => updateAllocationForm('medicine', v)} />
 
                   <div className="flex items-end">
-                    <button disabled={allocating || incidents.length === 0 || warehouses.length === 0}
+                    <button disabled={!canOperatorWrite || allocating || allIncidents.length === 0 || warehouses.length === 0}
                       className="w-full rounded-lg bg-cyan-600 px-4 py-3 text-sm font-semibold disabled:opacity-40">
                       {allocating ? 'Calculating...' : 'Generate Allocation Preview'}
                     </button>
@@ -1593,8 +1744,11 @@ incidents={
                   </div>
 
                   <button onClick={approveAllocation}
-                    className="mt-4 w-full rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold hover:bg-emerald-500">
-                    Approve Allocation & Deduct Stock
+                    disabled={!canAdminWrite}
+                    className="mt-4 w-full rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40">
+                    {isAdmin
+                      ? 'Approve Allocation & Deduct Stock'
+                      : 'Administrator Approval Required'}
                   </button>
                 </section>
               )}

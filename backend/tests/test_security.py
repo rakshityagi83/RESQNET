@@ -3,6 +3,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 import main
+import session_authorization
+from database import Base
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 
 @pytest.mark.parametrize(
@@ -80,6 +85,26 @@ def test_unauthenticated_writes_rejected(
     )
 
 @pytest.fixture
+def test_session_factory(session_test_headers):
+    engine = create_engine(
+        "sqlite+pysqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+
+    Base.metadata.create_all(engine)
+
+    TestSession = sessionmaker(bind=engine)
+
+    try:
+        yield lambda role: session_test_headers(
+            TestSession, role
+        )[0]
+    finally:
+        engine.dispose()
+
+
+@pytest.fixture
 def configured_test_tokens(monkeypatch):
     # These are disposable test credentials, not real secrets.
     monkeypatch.setenv("RESQNET_ADMIN_TOKEN", "a" * 48)
@@ -112,7 +137,7 @@ def configured_test_tokens(monkeypatch):
     ],
 )
 def test_operator_cannot_perform_admin_actions(
-    monkeypatch, configured_test_tokens, method, path, payload
+    monkeypatch, test_session_factory, method, path, payload
 ):
     def forbid_database_access(*args, **kwargs):
         raise AssertionError("Unauthorized database access")
@@ -123,7 +148,7 @@ def test_operator_cannot_perform_admin_actions(
         response = client.request(
             method,
             path,
-            headers={"Authorization": "Bearer " + "b" * 48},
+            headers=test_session_factory("operator"),
             json=payload,
         )
 
@@ -139,14 +164,14 @@ def test_invalid_token_rejected(monkeypatch, configured_test_tokens):
     with TestClient(main.app, raise_server_exceptions=False) as client:
         response = client.put(
             "/warehouses/1/inventory",
-            headers={"Authorization": "Bearer invalid-token"},
+            headers={"Cookie": "resqnet_session=invalid-token"},
             json={"food": 100, "water": 200, "medicine": 50},
         )
 
     assert response.status_code == 401
 
 
-def test_missing_token_configuration_fails_closed(monkeypatch):
+def test_legacy_bearer_without_configuration_rejected(monkeypatch):
     monkeypatch.delenv("RESQNET_ADMIN_TOKEN", raising=False)
     monkeypatch.delenv("RESQNET_OPERATOR_TOKEN", raising=False)
 
@@ -157,4 +182,43 @@ def test_missing_token_configuration_fails_closed(monkeypatch):
             json={"food": 100, "water": 200, "medicine": 50},
         )
 
-    assert response.status_code == 503
+    assert response.status_code == 401
+
+
+
+def test_missing_csrf_secret_fails_closed(
+    monkeypatch, test_session_factory
+):
+    headers = test_session_factory("admin")
+
+    monkeypatch.delenv(
+        "RESQNET_CSRF_HMAC_KEY",
+        raising=False,
+    )
+
+    accesses = []
+
+    def forbid_database_access(*args, **kwargs):
+        accesses.append(True)
+        raise AssertionError("Unsafe application write")
+
+    monkeypatch.setattr(
+        main, "SessionLocal", forbid_database_access
+    )
+
+    with TestClient(
+        main.app,
+        raise_server_exceptions=False,
+    ) as client:
+        response = client.put(
+            "/warehouses/1/inventory",
+            headers=headers,
+            json={
+                "food": 100,
+                "water": 200,
+                "medicine": 50,
+            },
+        )
+
+    assert response.status_code == 500
+    assert accesses == []

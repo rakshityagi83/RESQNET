@@ -194,3 +194,109 @@ def test_account_creation_can_be_rolled_back(db_session):
     )
 
     assert user is None
+
+
+@pytest.mark.parametrize(
+    "condition",
+    [
+        "unknown",
+        "wrong_password",
+        "disabled",
+        "invalid_role",
+        "valid",
+    ],
+)
+def test_password_verification_on_authentication_paths(
+    db_session, monkeypatch, condition
+):
+    import account_service
+
+    password = "correct-test-password-123"
+
+    user = create_user(
+        db_session,
+        username="operator1",
+        password=password,
+    )
+
+    username = user.username
+
+    if condition == "unknown":
+        username = "unknownoperator"
+
+    elif condition == "wrong_password":
+        password = "incorrect-password"
+
+    elif condition == "disabled":
+        user.is_active = False
+
+    elif condition == "invalid_role":
+        user.role = "unknown"
+
+    db_session.flush()
+
+    observed = []
+
+    original_verify = account_service.verify_password
+
+    def track_verification(candidate, stored_hash):
+        observed.append(stored_hash)
+
+        return original_verify(
+            candidate,
+            stored_hash,
+        )
+
+    monkeypatch.setattr(
+        account_service,
+        "verify_password",
+        track_verification,
+    )
+
+    result = authenticate_user(
+        db_session,
+        username,
+        password,
+    )
+
+    # Every well-formed authentication path must perform
+    # one password verification.
+    assert len(observed) == 1
+
+    if condition == "unknown":
+        assert observed[0] == (
+            account_service._DUMMY_PASSWORD_HASH
+        )
+
+        assert observed[0].startswith("$argon2id$")
+
+    else:
+        assert observed[0] == user.password_hash
+
+    if condition == "valid":
+        assert result is not None
+        assert result.id == user.id
+    else:
+        assert result is None
+
+
+def test_dummy_verification_cannot_authenticate_unknown_user(
+    db_session, monkeypatch
+):
+    import account_service
+
+    # Even if dummy password verification returns True,
+    # an unknown account must never authenticate.
+    monkeypatch.setattr(
+        account_service,
+        "verify_password",
+        lambda password, stored_hash: True,
+    )
+
+    result = authenticate_user(
+        db_session,
+        "unknownoperator",
+        "example-password",
+    )
+
+    assert result is None

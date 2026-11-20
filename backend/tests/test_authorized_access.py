@@ -10,12 +10,10 @@ from database import Base
 from models import Warehouse, Inventory, Allocation
 
 
-ADMIN_HEADERS = {"Authorization": "Bearer " + "a" * 48}
-OPERATOR_HEADERS = {"Authorization": "Bearer " + "b" * 48}
 
 
 @pytest.fixture
-def authorized_app(monkeypatch):
+def authorized_app(monkeypatch, session_test_headers):
     # Fake test credentials, never production secrets.
     monkeypatch.setenv("RESQNET_ADMIN_TOKEN", "a" * 48)
     monkeypatch.setenv("RESQNET_OPERATOR_TOKEN", "b" * 48)
@@ -66,15 +64,20 @@ def authorized_app(monkeypatch):
             medicine=50,
         ))
 
-    yield TestSession, warehouse_id
+    headers = {
+        role: session_test_headers(TestSession, role)[0]
+        for role in ["admin", "operator"]
+    }
+
+    yield TestSession, warehouse_id, headers
 
     engine.dispose()
 
 
 def test_admin_can_register_warehouse(authorized_app):
-    TestSession, _ = authorized_app
+    TestSession, _, headers = authorized_app
 
-    with TestClient(main.app, headers=ADMIN_HEADERS) as client:
+    with TestClient(main.app, headers=headers["admin"]) as client:
         response = client.post(
             "/warehouses",
             json={
@@ -100,9 +103,9 @@ def test_admin_can_register_warehouse(authorized_app):
 
 
 def test_admin_can_update_inventory(authorized_app):
-    TestSession, warehouse_id = authorized_app
+    TestSession, warehouse_id, headers = authorized_app
 
-    with TestClient(main.app, headers=ADMIN_HEADERS) as client:
+    with TestClient(main.app, headers=headers["admin"]) as client:
         response = client.put(
             f"/warehouses/{warehouse_id}/inventory",
             json={
@@ -123,16 +126,16 @@ def test_admin_can_update_inventory(authorized_app):
 
 
 @pytest.mark.parametrize(
-    "headers",
-    [OPERATOR_HEADERS, ADMIN_HEADERS],
+    "role",
+    ["operator", "admin"],
     ids=["operator", "admin"],
 )
 def test_authorized_preview_does_not_deduct_stock(
-    authorized_app, headers
+    authorized_app, role
 ):
-    TestSession, warehouse_id = authorized_app
+    TestSession, warehouse_id, headers = authorized_app
 
-    with TestClient(main.app, headers=headers) as client:
+    with TestClient(main.app, headers=headers[role]) as client:
         response = client.post(
             "/allocation/preview",
             json={
